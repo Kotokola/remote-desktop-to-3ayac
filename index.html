@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
     <title>Remote Desktop</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -15,8 +15,8 @@
     <div class="login-card">
         <div class="login-icon"><i class="fa-solid fa-desktop"></i></div>
         <h1>Remote Desktop</h1>
-        <p class="dim">Подключитесь к удалённому компьютеру</p>
-        <div class="fld"><label>Адрес сервера</label><input type="text" id="inpHost" placeholder="ws://localhost:8765"></div>
+        <p class="dim">Подключись к своему ПК</p>
+        <div class="fld"><label>Адрес сервера</label><input type="text" id="inpHost" placeholder="ws://192.168.1.100:8765" autocapitalize="off" autocomplete="off"></div>
         <div class="fld"><label>Пароль</label><input type="password" id="inpPass" placeholder="••••••"></div>
         <button class="btn" id="btnConnect"><i class="fa-solid fa-plug"></i> Подключиться</button>
         <div class="msg" id="loginMsg"></div>
@@ -25,41 +25,49 @@
 
 <!-- Main app -->
 <div class="app hidden" id="app">
-    <!-- Top bar -->
-    <div class="topbar">
-        <div class="topbar-left">
-            <span class="conn-dot" id="connDot"></span>
-            <span class="conn-text" id="connText">Отключено</span>
-        </div>
-        <div class="topbar-center">
-            <button class="tbtn active" data-tab="screen"><i class="fa-solid fa-display"></i></button>
-            <button class="tbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
-            <button class="tbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
-            <button class="tbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
-        </div>
-        <div class="topbar-right">
-            <button class="tbtn" id="btnFullscreen"><i class="fa-solid fa-expand"></i></button>
-            <button class="tbtn tbtn-red" id="btnDisconnect"><i class="fa-solid fa-power-off"></i></button>
-        </div>
-    </div>
 
-    <!-- Screen -->
-    <div class="panel active" id="panelScreen">
+    <!-- Screen (основной вид) -->
+    <div class="screen-view active" id="screenView">
         <div class="screen-wrap" id="screenWrap">
             <canvas id="screenCanvas"></canvas>
             <div class="screen-overlay" id="screenOverlay">
-                <i class="fa-solid fa-spinner fa-spin"></i> Ожидание потока...
+                <i class="fa-solid fa-display"></i>
+                <span>Нажми "Старт" для захвата экрана</span>
             </div>
         </div>
-        <div class="screen-controls">
-            <button class="ctrl-btn" id="btnStartStream"><i class="fa-solid fa-play"></i> Старт</button>
-            <button class="ctrl-btn" id="btnStopStream"><i class="fa-solid fa-stop"></i> Стоп</button>
-            <span class="fps-counter" id="fpsCounter">0 FPS</span>
+
+        <!-- Touch controls overlay -->
+        <div class="touch-controls" id="touchControls">
+            <button class="touch-btn" id="btnKeyboard"><i class="fa-solid fa-keyboard"></i></button>
+            <button class="touch-btn" id="btnScrollMode"><i class="fa-solid fa-hand"></i></button>
+            <button class="touch-btn" id="btnCtrlAltDel"><i class="fa-solid fa-power-off"></i></button>
+            <button class="touch-btn" id="btnStart2"><i class="fa-solid fa-play"></i></button>
+        </div>
+
+        <!-- Bottom bar -->
+        <div class="bottom-bar">
+            <div class="bb-left">
+                <span class="conn-dot" id="connDot"></span>
+                <span id="connText" class="conn-text">—</span>
+            </div>
+            <div class="bb-center">
+                <button class="bbtn active" data-tab="screen"><i class="fa-solid fa-display"></i></button>
+                <button class="bbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
+                <button class="bbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
+                <button class="bbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
+            </div>
+            <div class="bb-right">
+                <button class="bbtn" id="btnDisconnect"><i class="fa-solid fa-power-off"></i></button>
+            </div>
         </div>
     </div>
 
     <!-- Files -->
     <div class="panel" id="panelFiles">
+        <div class="panel-head">
+            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2>Файлы</h2>
+        </div>
         <div class="file-bar">
             <button class="ctrl-btn" id="btnHome"><i class="fa-solid fa-house"></i></button>
             <input type="text" id="filePath" class="file-path" placeholder="Путь">
@@ -70,25 +78,128 @@
 
     <!-- Terminal -->
     <div class="panel" id="panelTerminal">
+        <div class="panel-head">
+            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2>Терминал</h2>
+        </div>
         <div class="term-output" id="termOutput"></div>
         <div class="term-input-row">
             <span class="term-prompt">$</span>
-            <input type="text" id="termInput" class="term-input" placeholder="Введите команду..." autofocus>
+            <input type="text" id="termInput" class="term-input" placeholder="Команда...">
             <button class="ctrl-btn" id="btnTermRun"><i class="fa-solid fa-play"></i></button>
         </div>
     </div>
 
-    <!-- System Info -->
+    <!-- Sysinfo -->
     <div class="panel" id="panelSysinfo">
+        <div class="panel-head">
+            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2>Система</h2>
+        </div>
         <div class="info-grid" id="infoGrid">
             <div class="info-card"><div class="info-label">ОС</div><div class="info-value" id="infoOs">—</div></div>
-            <div class="info-card"><div class="info-label">Имя</div><div class="info-value" id="infoHost">—</div></div>
+            <div class="info-card"><div class="info-label">Имя ПК</div><div class="info-value" id="infoHost">—</div></div>
             <div class="info-card"><div class="info-label">Экран</div><div class="info-value" id="infoScreen">—</div></div>
             <div class="info-card"><div class="info-label">CPU</div><div class="info-value" id="infoCpu">—</div><div class="info-bar"><div class="info-bar-fill" id="barCpu"></div></div></div>
             <div class="info-card"><div class="info-label">RAM</div><div class="info-value" id="infoRam">—</div><div class="info-bar"><div class="info-bar-fill" id="barRam"></div></div></div>
             <div class="info-card"><div class="info-label">Диск</div><div class="info-value" id="infoDisk">—</div><div class="info-bar"><div class="info-bar-fill" id="barDisk"></div></div></div>
         </div>
         <button class="btn" id="btnRefresh"><i class="fa-solid fa-arrows-rotate"></i> Обновить</button>
+    </div>
+</div>
+
+<!-- Virtual keyboard modal -->
+<div class="kb-overlay" id="kbOverlay">
+    <div class="kb-panel">
+        <div class="kb-head">
+            <span>Клавиатура</span>
+            <button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <!-- Special keys row -->
+        <div class="kb-row kb-special">
+            <button class="kbtn ks" data-key="escape">Esc</button>
+            <button class="kbtn ks" data-key="tab">Tab</button>
+            <button class="kbtn ks" data-key="ctrl">Ctrl</button>
+            <button class="kbtn ks" data-key="alt">Alt</button>
+            <button class="kbtn ks" data-key="shift">Shift</button>
+            <button class="kbtn ks" data-key="win">Win</button>
+        </div>
+        <!-- Number row -->
+        <div class="kb-row">
+            <button class="kbtn" data-key="`">`</button>
+            <button class="kbtn" data-key="1">1</button>
+            <button class="kbtn" data-key="2">2</button>
+            <button class="kbtn" data-key="3">3</button>
+            <button class="kbtn" data-key="4">4</button>
+            <button class="kbtn" data-key="5">5</button>
+            <button class="kbtn" data-key="6">6</button>
+            <button class="kbtn" data-key="7">7</button>
+            <button class="kbtn" data-key="8">8</button>
+            <button class="kbtn" data-key="9">9</button>
+            <button class="kbtn" data-key="0">0</button>
+            <button class="kbtn" data-key="-">-</button>
+            <button class="kbtn" data-key="=">=</button>
+            <button class="kbtn kwide" data-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
+        </div>
+        <!-- QWERTY row -->
+        <div class="kb-row">
+            <button class="kbtn kwide" data-key="tab"><i class="fa-solid fa-right-left"></i></button>
+            <button class="kbtn" data-key="q">Q</button>
+            <button class="kbtn" data-key="w">W</button>
+            <button class="kbtn" data-key="e">E</button>
+            <button class="kbtn" data-key="r">R</button>
+            <button class="kbtn" data-key="t">T</button>
+            <button class="kbtn" data-key="y">Y</button>
+            <button class="kbtn" data-key="u">U</button>
+            <button class="kbtn" data-key="i">I</button>
+            <button class="kbtn" data-key="o">O</button>
+            <button class="kbtn" data-key="p">P</button>
+            <button class="kbtn" data-key="[">[</button>
+            <button class="kbtn" data-key="]">]</button>
+            <button class="kbtn" data-key="\\">\\</button>
+        </div>
+        <!-- Home row -->
+        <div class="kb-row">
+            <button class="kbtn kwide" data-key="capslock"><i class="fa-solid fa-lock"></i></button>
+            <button class="kbtn" data-key="a">A</button>
+            <button class="kbtn" data-key="s">S</button>
+            <button class="kbtn" data-key="d">D</button>
+            <button class="kbtn" data-key="f">F</button>
+            <button class="kbtn" data-key="g">G</button>
+            <button class="kbtn" data-key="h">H</button>
+            <button class="kbtn" data-key="j">J</button>
+            <button class="kbtn" data-key="k">K</button>
+            <button class="kbtn" data-key="l">L</button>
+            <button class="kbtn" data-key=";">;</button>
+            <button class="kbtn" data-key="'">'</button>
+            <button class="kbtn kwide" data-key="enter"><i class="fa-solid fa-turn-down"></i></button>
+        </div>
+        <!-- Bottom row -->
+        <div class="kb-row">
+            <button class="kbtn kwide" data-key="shift"><i class="fa-solid fa-arrow-up"></i></button>
+            <button class="kbtn" data-key="z">Z</button>
+            <button class="kbtn" data-key="x">X</button>
+            <button class="kbtn" data-key="c">C</button>
+            <button class="kbtn" data-key="v">V</button>
+            <button class="kbtn" data-key="b">B</button>
+            <button class="kbtn" data-key="n">N</button>
+            <button class="kbtn" data-key="m">M</button>
+            <button class="kbtn" data-key=",">,</button>
+            <button class="kbtn" data-key=".">.</button>
+            <button class="kbtn" data-key="/">/</button>
+            <button class="kbtn kwide" data-key="shift"><i class="fa-solid fa-arrow-up"></i></button>
+        </div>
+        <!-- Space row -->
+        <div class="kb-row">
+            <button class="kbtn ks" data-key="ctrl">Ctrl</button>
+            <button class="kbtn ks" data-key="alt">Alt</button>
+            <button class="kbtn ks" data-key="win">Win</button>
+            <button class="kbtn kspace" data-key="space"></button>
+            <button class="kbtn ks" data-key="left">◀</button>
+            <button class="kbtn ks" data-key="up">▲</button>
+            <button class="kbtn ks" data-key="down">▼</button>
+            <button class="kbtn ks" data-key="right">▶</button>
+        </div>
     </div>
 </div>
 
