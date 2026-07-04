@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Remote Desktop</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-screen" id="loginScreen">
+    <div class="login-card">
+        <div class="login-icon"><i class="fa-solid fa-desktop"></i></div>
+        <h1>Remote Desktop</h1>
+        <p class="dim">Подключитесь к удалённому компьютеру</p>
+        <div class="fld"><label>Адрес сервера</label><input type="text" id="inpHost" placeholder="ws://localhost:8765"></div>
+        <div class="fld"><label>Пароль</label><input type="password" id="inpPass" placeholder="••••••"></div>
+        <button class="btn" id="btnConnect"><i class="fa-solid fa-plug"></i> Подключиться</button>
+        <div class="msg" id="loginMsg"></div>
+    </div>
+</div>
+
+<!-- Main app -->
+<div class="app hidden" id="app">
+    <!-- Top bar -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <span class="conn-dot" id="connDot"></span>
+            <span class="conn-text" id="connText">Отключено</span>
+        </div>
+        <div class="topbar-center">
+            <button class="tbtn active" data-tab="screen"><i class="fa-solid fa-display"></i></button>
+            <button class="tbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
+            <button class="tbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
+            <button class="tbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
+        </div>
+        <div class="topbar-right">
+            <button class="tbtn" id="btnFullscreen"><i class="fa-solid fa-expand"></i></button>
+            <button class="tbtn tbtn-red" id="btnDisconnect"><i class="fa-solid fa-power-off"></i></button>
+        </div>
+    </div>
+
+    <!-- Screen -->
+    <div class="panel active" id="panelScreen">
+        <div class="screen-wrap" id="screenWrap">
+            <canvas id="screenCanvas"></canvas>
+            <div class="screen-overlay" id="screenOverlay">
+                <i class="fa-solid fa-spinner fa-spin"></i> Ожидание потока...
+            </div>
+        </div>
+        <div class="screen-controls">
+            <button class="ctrl-btn" id="btnStartStream"><i class="fa-solid fa-play"></i> Старт</button>
+            <button class="ctrl-btn" id="btnStopStream"><i class="fa-solid fa-stop"></i> Стоп</button>
+            <span class="fps-counter" id="fpsCounter">0 FPS</span>
+        </div>
+    </div>
+
+    <!-- Files -->
+    <div class="panel" id="panelFiles">
+        <div class="file-bar">
+            <button class="ctrl-btn" id="btnHome"><i class="fa-solid fa-house"></i></button>
+            <input type="text" id="filePath" class="file-path" placeholder="Путь">
+            <button class="ctrl-btn" id="btnGo"><i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+        <div class="file-list" id="fileList"></div>
+    </div>
+
+    <!-- Terminal -->
+    <div class="panel" id="panelTerminal">
+        <div class="term-output" id="termOutput"></div>
+        <div class="term-input-row">
+            <span class="term-prompt">$</span>
+            <input type="text" id="termInput" class="term-input" placeholder="Введите команду..." autofocus>
+            <button class="ctrl-btn" id="btnTermRun"><i class="fa-solid fa-play"></i></button>
+        </div>
+    </div>
+
+    <!-- System Info -->
+    <div class="panel" id="panelSysinfo">
+        <div class="info-grid" id="infoGrid">
+            <div class="info-card"><div class="info-label">ОС</div><div class="info-value" id="infoOs">—</div></div>
+            <div class="info-card"><div class="info-label">Имя</div><div class="info-value" id="infoHost">—</div></div>
+            <div class="info-card"><div class="info-label">Экран</div><div class="info-value" id="infoScreen">—</div></div>
+            <div class="info-card"><div class="info-label">CPU</div><div class="info-value" id="infoCpu">—</div><div class="info-bar"><div class="info-bar-fill" id="barCpu"></div></div></div>
+            <div class="info-card"><div class="info-label">RAM</div><div class="info-value" id="infoRam">—</div><div class="info-bar"><div class="info-bar-fill" id="barRam"></div></div></div>
+            <div class="info-card"><div class="info-label">Диск</div><div class="info-value" id="infoDisk">—</div><div class="info-bar"><div class="info-bar-fill" id="barDisk"></div></div></div>
+        </div>
+        <button class="btn" id="btnRefresh"><i class="fa-solid fa-arrows-rotate"></i> Обновить</button>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
