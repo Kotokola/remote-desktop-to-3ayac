@@ -14,24 +14,22 @@ function connect(){
   }
   $('inpHost').value=url;
   try{ws=new WebSocket(url)}catch(e){ml('Неверный адрес','er');return}
+  ws.binaryType='arraybuffer';
   ml('Подключение...','');
   ws.onopen=()=>ws.send(JSON.stringify({action:'auth',password:p}));
   ws.onmessage=e=>{
     try{
-      // Бинарные данные = кадр экрана
       if(e.data instanceof ArrayBuffer){
         const bytes=new Uint8Array(e.data);
+        if(bytes.length<8){console.log('Кадр слишком мал');return}
         const w=(bytes[0]<<24)|(bytes[1]<<16)|(bytes[2]<<8)|bytes[3];
         const h=(bytes[4]<<24)|(bytes[5]<<16)|(bytes[6]<<8)|bytes[7];
         const jpeg=bytes.slice(8);
-        // Конвертируем в base64
         let b64='';for(let i=0;i<jpeg.length;i++)b64+=String.fromCharCode(jpeg[i]);
         drawFrame(btoa(b64),w,h);
         return;
       }
-      // JSON = команды
-      const m=JSON.parse(e.data);
-      handleMsg(m);
+      handleMsg(JSON.parse(e.data));
     }catch(err){console.error('Ошибка:',err)}
   };
   ws.onerror=()=>ml('Сервер недоступен','er');
