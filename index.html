@@ -25,33 +25,26 @@
 
 <!-- Main app -->
 <div class="app hidden" id="app">
-
-    <!-- Screen (основной вид) -->
-    <div class="screen-view active" id="screenView">
+    <div class="screen-view act" id="screenView">
         <div class="screen-wrap" id="screenWrap">
             <canvas id="screenCanvas"></canvas>
             <div class="screen-overlay" id="screenOverlay">
                 <i class="fa-solid fa-display"></i>
-                <span>Нажми "Старт" для захвата экрана</span>
+                <span>Нажми ▶ для захвата экрана</span>
             </div>
         </div>
-
-        <!-- Touch controls overlay -->
-        <div class="touch-controls" id="touchControls">
+        <div class="touch-controls">
             <button class="touch-btn" id="btnKeyboard"><i class="fa-solid fa-keyboard"></i></button>
-            <button class="touch-btn" id="btnScrollMode"><i class="fa-solid fa-hand"></i></button>
-            <button class="touch-btn" id="btnCtrlAltDel"><i class="fa-solid fa-power-off"></i></button>
             <button class="touch-btn" id="btnStart2"><i class="fa-solid fa-play"></i></button>
+            <button class="touch-btn" id="btnCtrlAltDel"><i class="fa-solid fa-power-off"></i></button>
         </div>
-
-        <!-- Bottom bar -->
         <div class="bottom-bar">
             <div class="bb-left">
                 <span class="conn-dot" id="connDot"></span>
                 <span id="connText" class="conn-text">—</span>
             </div>
             <div class="bb-center">
-                <button class="bbtn active" data-tab="screen"><i class="fa-solid fa-display"></i></button>
+                <button class="bbtn act" data-tab="screen"><i class="fa-solid fa-display"></i></button>
                 <button class="bbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
                 <button class="bbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
                 <button class="bbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
@@ -62,12 +55,8 @@
         </div>
     </div>
 
-    <!-- Files -->
     <div class="panel" id="panelFiles">
-        <div class="panel-head">
-            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
-            <h2>Файлы</h2>
-        </div>
+        <div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Файлы</h2></div>
         <div class="file-bar">
             <button class="ctrl-btn" id="btnHome"><i class="fa-solid fa-house"></i></button>
             <input type="text" id="filePath" class="file-path" placeholder="Путь">
@@ -76,12 +65,8 @@
         <div class="file-list" id="fileList"></div>
     </div>
 
-    <!-- Terminal -->
     <div class="panel" id="panelTerminal">
-        <div class="panel-head">
-            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
-            <h2>Терминал</h2>
-        </div>
+        <div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Терминал</h2></div>
         <div class="term-output" id="termOutput"></div>
         <div class="term-input-row">
             <span class="term-prompt">$</span>
@@ -90,13 +75,9 @@
         </div>
     </div>
 
-    <!-- Sysinfo -->
     <div class="panel" id="panelSysinfo">
-        <div class="panel-head">
-            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
-            <h2>Система</h2>
-        </div>
-        <div class="info-grid" id="infoGrid">
+        <div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Система</h2></div>
+        <div class="info-grid">
             <div class="info-card"><div class="info-label">ОС</div><div class="info-value" id="infoOs">—</div></div>
             <div class="info-card"><div class="info-label">Имя ПК</div><div class="info-value" id="infoHost">—</div></div>
             <div class="info-card"><div class="info-label">Экран</div><div class="info-value" id="infoScreen">—</div></div>
@@ -108,98 +89,16 @@
     </div>
 </div>
 
-<!-- Virtual keyboard modal -->
+<!-- Keyboard -->
 <div class="kb-overlay" id="kbOverlay">
     <div class="kb-panel">
-        <div class="kb-head">
-            <span>Клавиатура</span>
-            <button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <!-- Special keys row -->
-        <div class="kb-row kb-special">
-            <button class="kbtn ks" data-key="escape">Esc</button>
-            <button class="kbtn ks" data-key="tab">Tab</button>
-            <button class="kbtn ks" data-key="ctrl">Ctrl</button>
-            <button class="kbtn ks" data-key="alt">Alt</button>
-            <button class="kbtn ks" data-key="shift">Shift</button>
-            <button class="kbtn ks" data-key="win">Win</button>
-        </div>
-        <!-- Number row -->
-        <div class="kb-row">
-            <button class="kbtn" data-key="`">`</button>
-            <button class="kbtn" data-key="1">1</button>
-            <button class="kbtn" data-key="2">2</button>
-            <button class="kbtn" data-key="3">3</button>
-            <button class="kbtn" data-key="4">4</button>
-            <button class="kbtn" data-key="5">5</button>
-            <button class="kbtn" data-key="6">6</button>
-            <button class="kbtn" data-key="7">7</button>
-            <button class="kbtn" data-key="8">8</button>
-            <button class="kbtn" data-key="9">9</button>
-            <button class="kbtn" data-key="0">0</button>
-            <button class="kbtn" data-key="-">-</button>
-            <button class="kbtn" data-key="=">=</button>
-            <button class="kbtn kwide" data-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
-        </div>
-        <!-- QWERTY row -->
-        <div class="kb-row">
-            <button class="kbtn kwide" data-key="tab"><i class="fa-solid fa-right-left"></i></button>
-            <button class="kbtn" data-key="q">Q</button>
-            <button class="kbtn" data-key="w">W</button>
-            <button class="kbtn" data-key="e">E</button>
-            <button class="kbtn" data-key="r">R</button>
-            <button class="kbtn" data-key="t">T</button>
-            <button class="kbtn" data-key="y">Y</button>
-            <button class="kbtn" data-key="u">U</button>
-            <button class="kbtn" data-key="i">I</button>
-            <button class="kbtn" data-key="o">O</button>
-            <button class="kbtn" data-key="p">P</button>
-            <button class="kbtn" data-key="[">[</button>
-            <button class="kbtn" data-key="]">]</button>
-            <button class="kbtn" data-key="\\">\\</button>
-        </div>
-        <!-- Home row -->
-        <div class="kb-row">
-            <button class="kbtn kwide" data-key="capslock"><i class="fa-solid fa-lock"></i></button>
-            <button class="kbtn" data-key="a">A</button>
-            <button class="kbtn" data-key="s">S</button>
-            <button class="kbtn" data-key="d">D</button>
-            <button class="kbtn" data-key="f">F</button>
-            <button class="kbtn" data-key="g">G</button>
-            <button class="kbtn" data-key="h">H</button>
-            <button class="kbtn" data-key="j">J</button>
-            <button class="kbtn" data-key="k">K</button>
-            <button class="kbtn" data-key="l">L</button>
-            <button class="kbtn" data-key=";">;</button>
-            <button class="kbtn" data-key="'">'</button>
-            <button class="kbtn kwide" data-key="enter"><i class="fa-solid fa-turn-down"></i></button>
-        </div>
-        <!-- Bottom row -->
-        <div class="kb-row">
-            <button class="kbtn kwide" data-key="shift"><i class="fa-solid fa-arrow-up"></i></button>
-            <button class="kbtn" data-key="z">Z</button>
-            <button class="kbtn" data-key="x">X</button>
-            <button class="kbtn" data-key="c">C</button>
-            <button class="kbtn" data-key="v">V</button>
-            <button class="kbtn" data-key="b">B</button>
-            <button class="kbtn" data-key="n">N</button>
-            <button class="kbtn" data-key="m">M</button>
-            <button class="kbtn" data-key=",">,</button>
-            <button class="kbtn" data-key=".">.</button>
-            <button class="kbtn" data-key="/">/</button>
-            <button class="kbtn kwide" data-key="shift"><i class="fa-solid fa-arrow-up"></i></button>
-        </div>
-        <!-- Space row -->
-        <div class="kb-row">
-            <button class="kbtn ks" data-key="ctrl">Ctrl</button>
-            <button class="kbtn ks" data-key="alt">Alt</button>
-            <button class="kbtn ks" data-key="win">Win</button>
-            <button class="kbtn kspace" data-key="space"></button>
-            <button class="kbtn ks" data-key="left">◀</button>
-            <button class="kbtn ks" data-key="up">▲</button>
-            <button class="kbtn ks" data-key="down">▼</button>
-            <button class="kbtn ks" data-key="right">▶</button>
-        </div>
+        <div class="kb-head"><span>Клавиатура</span><button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="kb-row"><button class="kbtn ks" data-key="escape">Esc</button><button class="kbtn ks" data-key="tab">Tab</button><button class="kbtn ks" data-key="ctrl">Ctrl</button><button class="kbtn ks" data-key="alt">Alt</button><button class="kbtn ks" data-key="shift">Shift</button><button class="kbtn ks" data-key="win">Win</button></div>
+        <div class="kb-row"><button class="kbtn" data-key="`">`</button><button class="kbtn" data-key="1">1</button><button class="kbtn" data-key="2">2</button><button class="kbtn" data-key="3">3</button><button class="kbtn" data-key="4">4</button><button class="kbtn" data-key="5">5</button><button class="kbtn" data-key="6">6</button><button class="kbtn" data-key="7">7</button><button class="kbtn" data-key="8">8</button><button class="kbtn" data-key="9">9</button><button class="kbtn" data-key="0">0</button><button class="kbtn" data-key="-">-</button><button class="kbtn" data-key="=">=</button><button class="kbtn kwide" data-key="backspace"><i class="fa-solid fa-delete-left"></i></button></div>
+        <div class="kb-row"><button class="kbtn" data-key="q">Q</button><button class="kbtn" data-key="w">W</button><button class="kbtn" data-key="e">E</button><button class="kbtn" data-key="r">R</button><button class="kbtn" data-key="t">T</button><button class="kbtn" data-key="y">Y</button><button class="kbtn" data-key="u">U</button><button class="kbtn" data-key="i">I</button><button class="kbtn" data-key="o">O</button><button class="kbtn" data-key="p">P</button><button class="kbtn" data-key="[">[</button><button class="kbtn" data-key="]">]</button></div>
+        <div class="kb-row"><button class="kbtn" data-key="a">A</button><button class="kbtn" data-key="s">S</button><button class="kbtn" data-key="d">D</button><button class="kbtn" data-key="f">F</button><button class="kbtn" data-key="g">G</button><button class="kbtn" data-key="h">H</button><button class="kbtn" data-key="j">J</button><button class="kbtn" data-key="k">K</button><button class="kbtn" data-key="l">L</button><button class="kbtn" data-key=";">;</button><button class="kbtn" data-key="'">'</button><button class="kbtn kwide" data-key="enter">Enter</button></div>
+        <div class="kb-row"><button class="kbtn" data-key="z">Z</button><button class="kbtn" data-key="x">X</button><button class="kbtn" data-key="c">C</button><button class="kbtn" data-key="v">V</button><button class="kbtn" data-key="b">B</button><button class="kbtn" data-key="n">N</button><button class="kbtn" data-key="m">M</button><button class="kbtn" data-key=",">,</button><button class="kbtn" data-key=".">.</button><button class="kbtn" data-key="/">/</button></div>
+        <div class="kb-row"><button class="kbtn ks" data-key="ctrl">Ctrl</button><button class="kbtn ks" data-key="alt">Alt</button><button class="kbtn kspace" data-key="space">Пробел</button><button class="kbtn ks" data-key="left">◀</button><button class="kbtn ks" data-key="up">▲</button><button class="kbtn ks" data-key="down">▼</button><button class="kbtn ks" data-key="right">▶</button></div>
     </div>
 </div>
 
