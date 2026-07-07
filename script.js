@@ -1,289 +1,355 @@
 (()=>{
-  const $=s=>document.getElementById(s);
-  let ws=null,connected=false,streaming=false,fc=0,lt=0;
-  let scrollMode=false, activeKeys=new Set();
+const $=s=>document.getElementById(s);
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fp=(v,c)=>(Number(v)||0).toFixed(2)+' '+(c||'');
+const FEE=0.05;
 
-  const tg=()=>{try{return window.Telegram?.WebApp||null}catch{return null}};
+function tgApp(){try{return window.Telegram?.WebApp||null}catch{return null}}
+function tgSend(d){const a=tgApp();if(!a)return;try{a.sendData(typeof d==='string'?d:JSON.stringify(d))}catch{}}
 
-  // === Connection ===
-  function connect(){
-    const h=$('inpHost').value.trim(),p=$('inpPass').value.trim();
-    if(!h||!p){ml('Заполните все поля','er');return}
+let balances={usdt:0,stars:0,ton:0};
+let idVisible=false,sellNft=null,sellCurrency=null;
+let _profileDone=false;
+let cW=0,cH=0;
 
-    // Auto-fix address format
-    let url=h;
-    if(url.startsWith('https://'))url='wss://'+url.slice(8);
-    else if(url.startsWith('http://'))url='ws://'+url.slice(7);
-    else if(!url.startsWith('ws://')&&!url.startsWith('wss://')){
-      if(url.includes('trycloudflare.com'))url='wss://'+url;
-      else url='ws://'+url;
-    }
-    $('inpHost').value=url;
+function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('act'));const el=$(id);if(el)el.classList.add('act');window.scrollTo(0,0)}
+function msg(id,t,k){const e=$(id);if(!e)return;e.textContent=t||'';e.className='ms';if(k)e.classList.add(k)}
 
-    try{ws=new WebSocket(url)}catch(e){ml('Неверный формат адреса. Пример: ws://192.168.1.100:8765','er');return}
-    ml('Подключение...','');
-    ws.onopen=()=>ws.send(JSON.stringify({action:'auth',password:p}));
-    ws.onmessage=e=>handleMsg(JSON.parse(e.data));
-    ws.onerror=()=>ml('Сервер недоступен. Проверь:\n1. Сервер запущен\n2. Тот же WiFi\n3. Адрес верный','er');
-    ws.onclose=()=>setConn(false);
+// ===== PROFILE =====
+function fillProfile(name,username,id,photoUrl){
+  const av=$('av');
+  $('pNm').textContent=name||'Пользователь';
+  $('pUs').textContent=username?'@'+username:'—';
+  $('pId').textContent=String(id||'—');
+  if(photoUrl)av.innerHTML='<img src="'+esc(photoUrl)+'" alt="">';
+  else av.textContent=(name||'?')[0].toUpperCase();
+}
+
+function loadProfile(){
+  const a=tgApp();
+  if(a){
+    try{if(a.initDataUnsafe&&a.initDataUnsafe.user){
+      const u=a.initDataUnsafe.user;
+      fillProfile([u.first_name,u.last_name].filter(Boolean).join(' '),u.username,u.id,u.photo_url);
+      return;
+    }}catch{}
+    try{if(a.initData){
+      const p=new URLSearchParams(a.initData);
+      const raw=p.get('user');
+      if(raw){const u=JSON.parse(raw);fillProfile([u.first_name,u.last_name].filter(Boolean).join(' '),u.username,u.id,u.photo_url);return;}
+    }}catch{}
   }
-  function disconnect(){if(ws){ws.close();ws=null}setConn(false);streaming=false}
-  function setConn(v){
-    connected=v;
-    $('connDot').className='conn-dot'+(v?' on':'');
-    $('connText').textContent=v?'Онлайн':'Офлайн';
-    if(v){$('loginScreen').classList.add('hidden');$('app').classList.remove('hidden')}
-  }
-  function ml(t,k){const e=$('loginMsg');if(!e)return;e.textContent=t||'';e.className='msg';if(k)e.classList.add(k)}
-  function send(d){if(ws&&ws.readyState===1)ws.send(JSON.stringify(d))}
+  try{
+    const p=new URLSearchParams(window.location.search);
+    const uid=p.get('uid');
+    if(uid){fillProfile(p.get('fn')||'Пользователь',p.get('un')||'',Number(uid));return;}
+  }catch{}
+  fillProfile('Пользователь','',0,null);
+  tgSend({action:'get_balance'});
+}
 
-  // === Messages ===
-  function handleMsg(m){
-    if(m.action==='auth_ok'){setConn(true);send({action:'sysinfo'});send({action:'start_screen'})}
-    if(m.action==='auth_fail')ml('Неверный пароль','er');
-    if(m.action==='screen_frame'||m.action==='screenshot')drawFrame(m.image,m.width,m.height);
-    if(m.action==='dir_list'){if(m.error){$('fileList').innerHTML='<div class="dim" style="padding:20px">'+m.error+'</div>';return}$('filePath').value=m.path;renderFiles(m.items)}
-    if(m.action==='cmd_result'){const o=$('termOutput');if(m.stdout)o.textContent+=m.stdout;if(m.stderr)o.textContent+=m.stderr;if(m.error)o.textContent+=m.error;o.textContent+='\n';o.scrollTop=o.scrollHeight}
-    if(m.action==='sysinfo'){
-      $('infoOs').textContent=(m.os||'')+' '+(m.os_version||'').substring(0,40);
-      $('infoHost').textContent=m.hostname||'—';
-      $('infoScreen').textContent=(m.screen_width||'?')+'x'+(m.screen_height||'?');
-      if(m.cpu_percent!=null){$('infoCpu').textContent=m.cpu_percent+'%';$('barCpu').style.width=m.cpu_percent+'%';$('barCpu').style.background=m.cpu_percent>80?'var(--er)':'var(--p)'}
-      if(m.ram_percent!=null){$('infoRam').textContent=m.ram_used_gb+'/'+m.ram_total_gb+' GB';$('barRam').style.width=m.ram_percent+'%';$('barRam').style.background=m.ram_percent>80?'var(--er)':'var(--p)'}
-      if(m.disk_percent!=null){$('infoDisk').textContent=m.disk_used_gb+'/'+m.disk_total_gb+' GB';$('barDisk').style.width=m.disk_percent+'%'}
-    }
-  }
+function toggleId(){idVisible=!idVisible;$('pId').classList.toggle('show',idVisible);$('btnToggleId').textContent=idVisible?'Скрыть':'Показать'}
 
-  // === Screen ===
-  const canvas=$('screenCanvas'),ctx=canvas.getContext('2d');
-  let cW=0,cH=0;
-  function drawFrame(b64,w,h){
-    const img=new Image();
-    img.onload=()=>{canvas.width=w;canvas.height=h;cW=w;cH=h;ctx.drawImage(img,0,0);$('screenOverlay').classList.add('hidden')};
-    img.src='data:image/jpeg;base64,'+b64;
-    fc++;const n=Date.now();if(n-lt>=1000){lt=n;fc=0}
-  }
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded',()=>{
+  const a=tgApp();
+  if(a){try{a.expand()}catch{}try{a.ready()}catch{}}
+  loadProfile();setTimeout(loadProfile,300);setTimeout(loadProfile,1000);
+  initBg();initRules();initMenu();initTabs();initSell();initBuy();initWithdraw();
+  $('btnToggleId').onclick=toggleId;
+  show('scrRules');
+});
 
-  // === Touch/Mouse on canvas ===
-  function coords(e){
+// ===== Rules =====
+function initRules(){
+  const cb=$('cbR'),btn=$('btnR');
+  btn.disabled=!cb.checked;
+  cb.onchange=()=>{btn.disabled=!cb.checked};
+  btn.onclick=()=>{try{localStorage.setItem('bb_r','1')}catch{}show('scrMenu');tgSend({action:'accept_rules'})};
+  try{if(localStorage.getItem('bb_r')==='1')show('scrMenu')}catch{}
+}
+
+// ===== Menu =====
+function initMenu(){
+  document.querySelectorAll('[data-go]').forEach(b=>{
+    b.onclick=()=>{
+      const g=b.dataset.go;
+      show('scr'+g[0].toUpperCase()+g.slice(1));
+      if(g==='sell'){resetSell();tgSend({action:'get_my_nfts'})}
+      if(g==='buy')tgSend({action:'get_market'});
+      if(g==='profile'){loadProfile();tgSend({action:'get_balance'});tgSend({action:'get_my_nfts'})}
+    };
+  });
+  document.querySelectorAll('[data-back]').forEach(b=>{
+    b.onclick=()=>show('scr'+b.dataset.back[0].toUpperCase()+b.dataset.back.slice(1));
+  });
+}
+
+// ===== Tabs =====
+function initTabs(){
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.onclick=()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('act'));
+      document.querySelectorAll('.tc').forEach(x=>x.classList.remove('act'));
+      t.classList.add('act');
+      const s=document.querySelector('.tc[data-tab="'+t.dataset.tab+'"]');
+      if(s)s.classList.add('act');
+      if(t.dataset.tab==='inv')tgSend({action:'get_my_nfts'});
+      if(t.dataset.tab==='tx')tgSend({action:'get_transactions'});
+      if(t.dataset.tab==='wd')tgSend({action:'get_balance'});
+    };
+  });
+}
+
+// ===== Sell =====
+function resetSell(){
+  sellNft=null;sellCurrency=null;
+  if($('step1'))$('step1').classList.remove('done');
+  if($('step2'))$('step2').classList.add('locked');
+  if($('step3'))$('step3').classList.add('locked');
+  if($('sellS'))$('sellS').textContent='—';
+  if($('sellP'))$('sellP').value='';
+  document.querySelectorAll('.curbtn').forEach(b=>b.classList.remove('sel'));
+  msg('msgSell','','');
+}
+function initSell(){
+  document.querySelectorAll('.curbtn').forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll('.curbtn').forEach(b=>b.classList.remove('sel'));
+      btn.classList.add('sel');sellCurrency=btn.dataset.cur;
+      if($('step3'))$('step3').classList.remove('locked');
+      if(sellNft&&$('sellS'))$('sellS').textContent=sellNft.name+' ('+sellCurrency+')';
+    };
+  });
+  if($('btnSell'))$('btnSell').onclick=()=>{
+    if(!sellNft||!sellCurrency){msg('msgSell','Выберите NFT и валюту','wn');return}
+    const p=Number($('sellP').value);
+    if(!p||p<=0){msg('msgSell','Введите цену','wn');return}
+    tgSend({action:'list_nft',nft_id:sellNft.id,price:p,currency:sellCurrency});
+    msg('msgSell','Выставлено!','ok');setTimeout(resetSell,2000);
+  };
+}
+function renderSell(items){
+  const el=$('sellL'),em=$('sellE');if(!el)return;
+  el.innerHTML='';em.style.display=items.length?'none':'block';
+  items.forEach(n=>{
+    const b=document.createElement('button');b.className='li';b.type='button';
+    b.innerHTML='<div class="lii"><img src="'+esc(n.image_url||'')+'" onerror="this.style.display=\'none\'"></div><div class="lib"><div class="lin">'+esc(n.name||'NFT')+'</div><div class="lis">'+esc(n.rarity||'')+'</div></div>';
+    b.onclick=()=>{el.querySelectorAll('.li').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');sellNft=n;
+      if($('step1'))$('step1').classList.add('done');if($('step2'))$('step2').classList.remove('locked');msg('msgSell','','')};
+    el.appendChild(b);
+  });
+}
+
+// ===== Buy =====
+let buyNft=null;
+function initBuy(){
+  if($('btnBuy'))$('btnBuy').onclick=()=>{
+    if(!buyNft)return;
+    tgSend({action:'create_purchase_request',nft_id:buyNft.id,offer_price:Number(buyNft.price),currency:buyNft.currency||'USDT'});
+    msg('msgBuy','Заявка отправлена!','ok');setTimeout(()=>$('ov').classList.remove('show'),1500);
+  };
+  if($('mCl'))$('mCl').onclick=()=>$('ov').classList.remove('show');
+  if($('ov'))$('ov').onclick=e=>{if(e.target===$('ov'))$('ov').classList.remove('show')};
+}
+function renderMarket(items){
+  const el=$('mktL'),em=$('mktE');if(!el)return;
+  el.innerHTML='';em.style.display=items.length?'none':'block';
+  items.forEach(n=>{
+    const c=document.createElement('button');c.className='mc';c.type='button';
+    c.innerHTML='<div class="mci"><img src="'+esc(n.image_url||'')+'" onerror="this.style.display=\'none\'"></div><div class="mcb"><div class="mcn">'+esc(n.name||'NFT')+'</div><div class="mcr"><span class="mcl">Цена:</span><span class="mcv">'+fp(n.price,n.currency)+'</span></div><div class="mcr"><span class="mcl">Продавец:</span><span class="mcv">'+esc(n.seller_name||'')+'</span></div></div>';
+    c.onclick=()=>{buyNft=n;$('mI').src=n.image_url||'';$('mT').textContent=n.name||'NFT';
+      $('mP').textContent=fp(n.price,n.currency);$('mS').textContent=n.seller_name||'';
+      $('mR').textContent=(n.rarity||'COMMON').toUpperCase();$('mRT').textContent=n.rarity||'common';
+      $('mLk').textContent=n.token_link||'—';$('msgBuy').textContent='';$('ov').classList.add('show');$('btnBuy').disabled=false};
+    el.appendChild(c);
+  });
+}
+
+function renderProfInv(items){
+  const el=$('prInv'),em=$('prInvE');if(!el)return;
+  el.innerHTML='';em.style.display=items.length?'none':'block';
+  items.forEach(n=>{
+    const d=document.createElement('div');d.className='li';
+    d.innerHTML='<div class="lii"><img src="'+esc(n.image_url||'')+'" onerror="this.style.display=\'none\'"></div><div class="lib"><div class="lin">'+esc(n.name||'NFT')+'</div><div class="lis">'+(n.is_listed?'В продаже':'Не в продаже')+'</div></div>';
+    el.appendChild(d);
+  });
+  renderSell(items);
+}
+
+function renderTx(items){
+  const el=$('txL'),em=$('txE');if(!el)return;
+  el.innerHTML='';em.style.display=items.length?'none':'block';
+  items.forEach(tx=>{
+    const d=document.createElement('div');d.className='txi';
+    const a=Number(tx.amount)||0;
+    d.innerHTML='<b>'+esc(tx.type||'—')+'</b><div class="amt">'+(a>=0?'+':'')+a.toFixed(2)+' '+esc(tx.currency||'USDT')+'</div><div class="det">'+esc(tx.details||tx.created_at||'')+'</div>';
+    el.appendChild(d);
+  });
+}
+
+function renderBalance(m){
+  balances.usdt=Number(m.balance)||0;balances.stars=Number(m.stars)||0;balances.ton=Number(m.ton)||0;
+  if($('bUsdt'))$('bUsdt').textContent=balances.usdt.toFixed(2);
+  if($('bStars'))$('bStars').textContent=balances.stars.toFixed(0);
+  if($('bTon'))$('bTon').textContent=balances.ton.toFixed(2);
+  if(m.user_id&&m.first_name&&!_profileDone){
+    fillProfile(m.first_name||'Пользователь',m.username||'',m.user_id,null);
+  }
+}
+
+function initWithdraw(){
+  const ai=$('wdA'),cs=$('wdCur'),cl=$('wdCalc');
+  if(!ai||!cs||!cl)return;
+  function uc(){const a=Number(ai.value||0),c=cs.value;if(a<=0){cl.textContent='Получите: —';return}cl.textContent='Получите: '+(a*(1-FEE)).toFixed(2)+' '+c}
+  ai.oninput=uc;cs.onchange=uc;
+  $('btnWd').onclick=()=>{
+    const a=Number($('wdA').value||0),w=$('wdW').value||'',cur=$('wdCur').value;
+    if(a<=0){msg('msgWd','Введите сумму','wn');return}
+    if(!w){msg('msgWd','Укажите @username для вывода','wn');return}
+    const mm={USDT:1,STARS:50,TON:0.5};
+    if(a<mm[cur]){msg('msgWd','Минимум: '+mm[cur]+' '+cur,'wn');return}
+    if(cur==='USDT'&&a>balances.usdt){msg('msgWd','Недостаточно. Баланс: '+balances.usdt.toFixed(2)+' USDT','wn');return}
+    if(cur==='STARS'&&a>balances.stars){msg('msgWd','Недостаточно. Баланс: '+balances.stars+' Stars','wn');return}
+    if(cur==='TON'&&a>balances.ton){msg('msgWd','Недостаточно. Баланс: '+balances.ton.toFixed(2)+' TON','wn');return}
+    tgSend({action:'create_withdraw',amount:a,currency:cur,wallet_address:w});
+    msg('msgWd','Заявка! К вам придет '+(a*(1-FEE)).toFixed(2)+' '+cur+' на @'+w.replace('@','')+'. @ggyyert свяжется.','ok');
+  };
+}
+
+function onData(m){
+  const a=m?.action;
+  if(a==='get_balance')renderBalance(m);
+  if(a==='get_market')renderMarket(m.items||[]);
+  if(a==='get_my_nfts')renderProfInv(m.items||[]);
+  if(a==='get_transactions')renderTx(m.items||[]);
+  if(a==='accept_rules')show('scrMenu');
+}
+const app=tgApp();
+if(app){try{app.onEvent('webapp_data',e=>{try{onData(JSON.parse(e.data))}catch{}})}catch{}}
+
+// ==========================================
+//  REMOTE DESKTOP — Screen + Touch + Keys
+// ==========================================
+const canvas=$('screenCanvas');
+const ctx=canvas?canvas.getContext('2d'):null;
+let streaming=false;
+
+function drawFrame(b64,w,h){
+  if(!ctx)return;
+  const img=new Image();
+  img.onload=()=>{canvas.width=w;canvas.height=h;cW=w;cH=h;ctx.drawImage(img,0,0);$('screenOverlay').classList.add('hidden')};
+  img.src='data:image/jpeg;base64,'+b64;
+}
+
+// === Touch coordinates ===
+function tCoords(e){
+  const r=canvas.getBoundingClientRect();
+  if(e.touches&&e.touches.length){
+    return{x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top,cw:cW,ch:cH};
+  }
+  return{x:e.clientX-r.left,y:e.clientY-r.top,cw:cW,ch:cH};
+}
+
+// === Canvas touch handling ===
+let touchDragging=false;
+
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  touchDragging=true;
+  const c=tCoords(e);
+  send({action:'mouse_move',...c});
+  send({action:'mouse_click',...c,button:'left'});
+},{passive:false});
+
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(!touchDragging)return;
+  send({action:'mouse_move',...tCoords(e)});
+},{passive:false});
+
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  touchDragging=false;
+  if(e.changedTouches&&e.changedTouches.length){
+    const t=e.changedTouches[0];
     const r=canvas.getBoundingClientRect();
-    let cx,cy;
-    if(e.touches&&e.touches.length){
-      cx=e.touches[0].clientX-r.left;
-      cy=e.touches[0].clientY-r.top;
-    }else{
-      cx=e.clientX-r.left;
-      cy=e.clientY-r.top;
-    }
-    return{x:cx,y:cy,cw:cW,ch:cH};
+    send({action:'mouse_up',x:t.clientX-r.left,y:t.clientY-r.top,cw:cW,ch:cH,button:'left'});
   }
+},{passive:false});
 
-  let lastTap=0, tapTimeout=null, pinchDist=0;
+// === Canvas mouse (desktop) ===
+canvas.addEventListener('mousemove',e=>{if(connected)send({action:'mouse_move',...tCoords(e)})});
+canvas.addEventListener('mousedown',e=>{if(!connected)return;e.preventDefault();send({action:'mouse_click',...tCoords(e),button:e.button===2?'right':'left'})});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
-  // Mouse events (desktop)
-  canvas.addEventListener('mousemove',e=>{if(connected&&!scrollMode)send({action:'mouse_move',...coords(e)})});
-  canvas.addEventListener('mousedown',e=>{if(!connected)return;e.preventDefault();send({action:'mouse_down',...coords(e),button:e.button===2?'right':'left'})});
-  canvas.addEventListener('mouseup',e=>{if(!connected)return;send({action:'mouse_up',...coords(e),button:e.button===2?'right':'left'})});
-  canvas.addEventListener('wheel',e=>{if(!connected)return;e.preventDefault();send({action:'mouse_scroll',delta:e.deltaY>0?-1:1})},{passive:false});
-  canvas.addEventListener('contextmenu',e=>e.preventDefault());
-
-  // Touch events (mobile)
-  canvas.addEventListener('touchstart',e=>{
-    if(!connected)return;
-    e.preventDefault();
-
-    // Two-finger scroll mode
-    if(e.touches.length===2){
-      scrollMode=true;
-      $('btnScrollMode').classList.add('active');
-      const dx=e.touches[0].clientX-e.touches[1].clientX;
-      const dy=e.touches[0].clientY-e.touches[1].clientY;
-      pinchDist=Math.sqrt(dx*dx+dy*dy);
-      return;
-    }
-
-    // Single tap — detect double-tap for right click
-    const now=Date.now();
-    if(now-lastTap<300){
-      // Double tap = right click
-      clearTimeout(tapTimeout);
-      send({action:'mouse_click',...coords(e),button:'right'});
-      lastTap=0;
-      return;
-    }
-    lastTap=now;
-
-    // Long press = right click (after 500ms)
-    const c=coords(e);
-    tapTimeout=setTimeout(()=>{
-      send({action:'mouse_click',...c,button:'right'});
-      tapTimeout=null;
-    },500);
-
-    // Start drag
-    send({action:'mouse_down',...c,button:'left'});
-  },{passive:false});
-
-  canvas.addEventListener('touchmove',e=>{
-    if(!connected)return;
-    e.preventDefault();
-
-    // Two-finger scroll
-    if(scrollMode&&e.touches.length===2){
-      const dy=e.touches[0].clientY-e.touches[1].clientY;
-      const delta=dy>0?1:-1;
-      send({action:'mouse_scroll',delta});
-      return;
-    }
-
-    // Single finger drag
-    if(tapTimeout){clearTimeout(tapTimeout);tapTimeout=null}
-    send({action:'mouse_move',...coords(e)});
-  },{passive:false});
-
-  canvas.addEventListener('touchend',e=>{
-    if(!connected)return;
-    clearTimeout(tapTimeout);tapTimeout=null;
-    if(scrollMode&&e.touches.length<2){scrollMode=false;$('btnScrollMode').classList.remove('active')}
-    if(e.touches.length===0){
-      send({action:'mouse_up',x:0,y:0,cw:cW,ch:cH,button:'left'});
-    }
-  });
-
-  // === Keyboard ===
-  const keyMap={'Enter':'enter','Backspace':'backspace','Tab':'tab','Escape':'escape','Delete':'delete',
-    'ArrowUp':'up','ArrowDown':'down','ArrowLeft':'left','ArrowRight':'right',
-    ' ':'space','Control':'ctrl','Alt':'alt','Shift':'shift','Meta':'win'};
-
-  document.addEventListener('keydown',e=>{
-    if(!connected||e.target.tagName==='INPUT')return;
-    e.preventDefault();
-    const k=keyMap[e.key]||e.key.toLowerCase();
-    if(!activeKeys.has(k)){activeKeys.add(k);send({action:'key',key:k,pressed:true})}
-  });
-  document.addEventListener('keyup',e=>{
-    if(!connected||e.target.tagName==='INPUT')return;
-    const k=keyMap[e.key]||e.key.toLowerCase();
-    activeKeys.delete(k);
-    send({action:'key',key:k,pressed:false});
-  });
-
-  // === Virtual Keyboard ===
-  let shiftOn=false, ctrlOn=false, altOn=false, winOn=false;
-
-  function toggleKB(){$('kbOverlay').classList.toggle('show')}
-  function sendKey(key,pressed){
-    // Handle modifier states
-    if(key==='shift'){shiftOn=pressed;if(!pressed)$('kbOverlay').querySelectorAll('.kbtn').forEach(b=>{if(b.dataset.key==='shift')b.classList.remove('pressed')});else $('kbOverlay').querySelectorAll('[data-key="shift"]').forEach(b=>b.classList.add('pressed'))}
-    if(key==='ctrl'){ctrlOn=pressed;if(pressed)$('kbOverlay').querySelectorAll('[data-key="ctrl"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="ctrl"]').forEach(b=>b.classList.remove('pressed'))}
-    if(key==='alt'){altOn=pressed;if(pressed)$('kbOverlay').querySelectorAll('[data-key="alt"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="alt"]').forEach(b=>b.classList.remove('pressed'))}
-    if(key==='win'){winOn=pressed;if(pressed)$('kbOverlay').querySelectorAll('[data-key="win"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="win"]').forEach(b=>b.classList.remove('pressed'))}
-    if(key==='capslock'&&pressed){shiftOn=!shiftOn;if(shiftOn)$('kbOverlay').querySelectorAll('[data-key="shift"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="shift"]').forEach(b=>b.classList.remove('pressed'))}
-
-    // Apply shift for letters
-    let finalKey=key;
-    if(shiftOn&&key.length===1&&/[a-z]/i.test(key)){
-      finalKey=key.toUpperCase();
-    }else if(shiftOn){
-      const shiftMap={'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',',':'<','.':'>','/':'?'};
-      if(shiftMap[key])finalKey=shiftMap[key];
-    }
-
-    send({action:'key',key:finalKey,pressed});
+// === Virtual Keyboard ===
+let shiftOn=false;
+function sendKey(key,pressed){
+  if(key==='shift'){shiftOn=pressed}
+  let k=key;
+  if(shiftOn&&key.length===1&&/[a-z]/i.test(key)){k=key.toUpperCase()}
+  else if(shiftOn){
+    const sm={'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',',':'<','.':'>','/':'?'};
+    if(sm[key])k=sm[key];
   }
+  send({action:'key',key:k,pressed});
+}
 
-  document.querySelectorAll('.kbtn').forEach(btn=>{
-    const key=btn.dataset.key;
-    if(!key)return;
+function toggleKB(){$('kbOverlay').classList.toggle('show')}
 
-    // Touch events for keyboard buttons
-    btn.addEventListener('touchstart',e=>{
-      e.preventDefault();e.stopPropagation();
-      btn.classList.add('pressed');
-      sendKey(key,true);
-    },{passive:false});
+document.querySelectorAll('.kbtn').forEach(btn=>{
+  const key=btn.dataset.key;
+  if(!key)return;
+  btn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();btn.classList.add('pressed');sendKey(key,true)},{passive:false});
+  btn.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();btn.classList.remove('pressed');sendKey(key,false)},{passive:false});
+  btn.addEventListener('touchcancel',()=>{btn.classList.remove('pressed');sendKey(key,false)});
+  // Also support click for desktop testing
+  btn.addEventListener('click',e=>{e.preventDefault();sendKey(key,true);setTimeout(()=>sendKey(key,false),50)});
+});
 
-    btn.addEventListener('touchend',e=>{
-      e.preventDefault();e.stopPropagation();
-      btn.classList.remove('pressed');
-      sendKey(key,false);
-    },{passive:false});
+// === Tabs ===
+document.querySelectorAll('.bbtn[data-tab]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.bbtn[data-tab]').forEach(x=>x.classList.remove('act'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('act'));
+    document.querySelector('.screen-view').classList.remove('active');
+    b.classList.add('act');
+    const t=b.dataset.tab;
+    if(t==='screen'){document.querySelector('.screen-view').classList.add('active');return}
+    const p=$('panel'+t[0].toUpperCase()+t.slice(1));
+    if(p)p.classList.add('act');
+  };
+});
 
-    btn.addEventListener('touchcancel',e=>{
-      btn.classList.remove('pressed');
-      sendKey(key,false);
-    });
-  });
-
-  // === Tabs ===
-  document.querySelectorAll('.bbtn[data-tab]').forEach(btn=>{
-    btn.onclick=()=>{
-      document.querySelectorAll('.bbtn[data-tab]').forEach(b=>b.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-      document.querySelector('.screen-view').classList.remove('active');
-      btn.classList.add('active');
-      const tab=btn.dataset.tab;
-      if(tab==='screen'){document.querySelector('.screen-view').classList.add('active');return}
-      const panel=$('panel'+tab.charAt(0).toUpperCase()+tab.slice(1));
-      if(panel)panel.classList.add('active');
-    };
-  });
-
-  document.querySelectorAll('.pback').forEach(btn=>{
-    btn.onclick=()=>{
-      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-      document.querySelector('.screen-view').classList.add('active');
-      document.querySelectorAll('.bbtn[data-tab]').forEach(b=>b.classList.remove('active'));
-      document.querySelector('.bbtn[data-tab="screen"]').classList.add('active');
-    };
-  });
-
-  // === Controls ===
-  $('btnConnect').onclick=connect;
-  $('btnDisconnect').onclick=disconnect;
-  $('btnStart2').onclick=()=>{streaming=true;send({action:'start_screen'})};
-  $('btnKeyboard').onclick=toggleKB;
-  $('kbClose').onclick=toggleKB;
-  $('btnScrollMode').onclick=()=>{scrollMode=!scrollMode;$('btnScrollMode').classList.toggle('active',scrollMode)};
-  $('btnCtrlAltDel').onclick=()=>{send({action:'key',key:'ctrl',pressed:true});send({action:'key',key:'alt',pressed:true});send({action:'key',key:'delete',pressed:true});setTimeout(()=>{send({action:'key',key:'delete',pressed:false});send({action:'key',key:'alt',pressed:false});send({action:'key',key:'ctrl',pressed:false})},100)};
-  $('btnHome').onclick=()=>send({action:'list_dir',path:navigator.platform.includes('Win')?'C:\\':"/"});
-  $('btnGo').onclick=()=>send({action:'list_dir',path:$('filePath').value});
-  $('btnRefresh').onclick=()=>send({action:'sysinfo'});
-  $('termInput').addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&connected){
-      const c=$('termInput').value.trim();if(!c)return;
-      $('termOutput').textContent+='$ '+c+'\n';
-      send({action:'run_cmd',cmd:c});$('termInput').value='';
-    }
-  });
-  $('btnTermRun').onclick=()=>{
-    const c=$('termInput').value.trim();if(!c||!connected)return;
+// === Controls ===
+if($('btnKeyboard'))$('btnKeyboard').onclick=toggleKB;
+if($('kbClose'))$('kbClose').onclick=toggleKB;
+if($('btnScrollMode'))$('btnScrollMode').onclick=()=>{const s=!scrollMode;scrollMode=s;$('btnScrollMode').classList.toggle('active',s)};
+if($('btnCtrlAltDel'))$('btnCtrlAltDel').onclick=()=>{send({action:'key',key:'ctrl',pressed:true});send({action:'key',key:'alt',pressed:true});send({action:'key',key:'delete',pressed:true});setTimeout(()=>{send({action:'key',key:'delete',pressed:false});send({action:'key',key:'alt',pressed:false});send({action:'key',key:'ctrl',pressed:false})},100)};
+if($('btnStart2'))$('btnStart2').onclick=()=>{streaming=true;send({action:'start_screen'})};
+if($('btnHome'))$('btnHome').onclick=()=>send({action:'list_dir',path:'/'});
+if($('btnGo'))$('btnGo').onclick=()=>send({action:'list_dir',path:$('filePath').value});
+if($('btnRefresh'))$('btnRefresh').onclick=()=>send({action:'sysinfo'});
+if($('termInput'))$('termInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&connected){
+    const c=$('termInput').value.trim();if(!c)return;
     $('termOutput').textContent+='$ '+c+'\n';
     send({action:'run_cmd',cmd:c});$('termInput').value='';
-  };
-
-  // === Files ===
-  function renderFiles(items){
-    const el=$('fileList');el.innerHTML='';
-    items.forEach(item=>{
-      const row=document.createElement('div');row.className='file-item';
-      const icon=item.is_dir?'fa-folder':'fa-file';
-      const size=item.is_dir?'':fmtSize(item.size);
-      row.innerHTML=`<i class="fa-solid ${icon}"></i><span class="file-name">${esc(item.name)}</span><span class="file-size">${size}</span>`;
-      row.onclick=()=>{
-        if(item.is_dir)send({action:'list_dir',path:item.path});
-        else send({action:'read_file',path:item.path});
-      };
-      el.appendChild(row);
-    });
   }
-  function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(1)+' GB'}
-  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+});
+if($('btnTermRun'))$('btnTermRun').onclick=()=>{
+  const c=$('termInput').value.trim();if(!c||!connected)return;
+  $('termOutput').textContent+='$ '+c+'\n';
+  send({action:'run_cmd',cmd:c});$('termInput').value='';
+};
 
-  // === Init ===
-  $('inpPass').addEventListener('keydown',e=>{if(e.key==='Enter')connect()});
-
-  // Telegram WebApp
-  const a=tg();
-  if(a){try{a.expand()}catch{}try{a.ready()}catch{}}
+// === BG ===
+function initBg(){
+  const c=$('bgCanvas');if(!c)return;const ctx2=c.getContext('2d');let w,h,pts=[];
+  function r(){w=c.width=innerWidth;h=c.height=innerHeight}
+  function m(){pts=[];for(let i=0,n=Math.floor(w*h/18000);i<n;i++)pts.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.8+.4,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35,o:Math.random()*.4+.08})}
+  function f(){ctx2.clearRect(0,0,w,h);for(const p of pts){p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=w;if(p.x>w)p.x=0;if(p.y<0)p.y=h;if(p.y>h)p.y=0;ctx2.beginPath();ctx2.arc(p.x,p.y,p.r,0,Math.PI*2);ctx2.fillStyle='rgba(0,136,204,'+p.o+')';ctx2.fill()}requestAnimationFrame(f)}
+  r();m();f();addEventListener('resize',()=>{r();m()});
+}
 })();
