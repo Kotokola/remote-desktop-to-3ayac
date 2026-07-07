@@ -18,10 +18,21 @@ function connect(){
   ws.onopen=()=>ws.send(JSON.stringify({action:'auth',password:p}));
   ws.onmessage=e=>{
     try{
+      // Бинарные данные = кадр экрана
+      if(e.data instanceof ArrayBuffer){
+        const bytes=new Uint8Array(e.data);
+        const w=(bytes[0]<<24)|(bytes[1]<<16)|(bytes[2]<<8)|bytes[3];
+        const h=(bytes[4]<<24)|(bytes[5]<<16)|(bytes[6]<<8)|bytes[7];
+        const jpeg=bytes.slice(8);
+        // Конвертируем в base64
+        let b64='';for(let i=0;i<jpeg.length;i++)b64+=String.fromCharCode(jpeg[i]);
+        drawFrame(btoa(b64),w,h);
+        return;
+      }
+      // JSON = команды
       const m=JSON.parse(e.data);
-      if(m.action==='screen_frame')console.log('Кадр получен:',m.width+'x'+m.height,'base64:',m.image?.length);
       handleMsg(m);
-    }catch(err){console.error('Ошибка парсинга:',err)}
+    }catch(err){console.error('Ошибка:',err)}
   };
   ws.onerror=()=>ml('Сервер недоступен','er');
   ws.onclose=()=>setConn(false);
