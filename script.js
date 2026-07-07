@@ -36,6 +36,7 @@ function handleMsg(m){
   if(a==='auth_ok'){setConn(true);send({action:'sysinfo'});send({action:'start_screen'})}
   if(a==='auth_fail')ml('Неверный пароль','er');
   if(a==='screen_frame'||a==='screenshot')drawFrame(m.image,m.width,m.height);
+  if(a==='audio_frame')playAudio(m.data);
   if(a==='dir_list'){if(m.error){$('fileList').innerHTML='<div style="padding:20px;color:#888">'+m.error+'</div>';return}$('filePath').value=m.path;renderFiles(m.items)}
   if(a==='cmd_result'){const o=$('termOutput');if(m.stdout)o.textContent+=m.stdout;if(m.stderr)o.textContent+=m.stderr;if(m.error)o.textContent+=m.error;o.textContent+='\n';o.scrollTop=o.scrollHeight}
   if(a==='sysinfo'){
@@ -50,11 +51,38 @@ function handleMsg(m){
 
 // === Screen ===
 const canvas=$('screenCanvas'),ctx=canvas?canvas.getContext('2d'):null;
+let audioCtx=null,audioQueue=[];
+
 function drawFrame(b64,w,h){
   if(!ctx)return;
   const img=new Image();
-  img.onload=()=>{canvas.width=w;canvas.height=h;cW=w;cH=h;ctx.drawImage(img,0,0);$('screenOverlay').classList.add('hidden')};
+  img.onload=()=>{
+    canvas.width=w;canvas.height=h;
+    cW=w;cH=h;
+    ctx.drawImage(img,0,0);
+    $('screenOverlay').classList.add('hidden');
+  };
+  img.onerror=()=>{console.error('Ошибка загрузки кадра')};
   img.src='data:image/jpeg;base64,'+b64;
+}
+
+function playAudio(b64){
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const raw=atob(b64);
+    const buf=new ArrayBuffer(raw.length);
+    const view=new Uint8Array(buf);
+    for(let i=0;i<raw.length;i++)view[i]=raw.charCodeAt(i);
+    const int16=new Int16Array(buf);
+    const float32=new Float32Array(int16.length);
+    for(let i=0;i<int16.length;i++)float32[i]=int16[i]/32768;
+    const src=audioCtx.createBufferSource();
+    const ab=audioCtx.createBuffer(1,float32.length,16000);
+    ab.getChannelData(0).set(float32);
+    src.buffer=ab;
+    src.connect(audioCtx.destination);
+    src.start();
+  }catch(e){}
 }
 
 // === Touch coords ===
@@ -65,46 +93,98 @@ function tCoords(e){
 }
 
 // === Canvas touch ===
-let touchDrag=false;
+let touchDrag=false,touchStartX=0,touchStartY=0,touchStartTime=0;
+let twoFingerStartX=0,twoFingerStartY=0;
+
 canvas.addEventListener('touchstart',e=>{
-  e.preventDefault();touchDrag=true;
-  const c=tCoords(e);
-  send({action:'mouse_move',...c});
-  send({action:'mouse_click',...c,button:'left'});
+  e.preventDefault();
+  if(e.touches.length===2){
+    // Two-finger: start horizontal scroll
+    twoFingerStartX=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    twoFingerStartY=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    return;
+  }
+  if(e.touches.length===1){
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
+    touchStartTime=Date.now();
+    touchDrag=true;
+    const c=tCoords(e);
+    send({action:'mouse_move',...c});
+  }
 },{passive:false});
+
 canvas.addEventListener('touchmove',e=>{
   e.preventDefault();
-  if(touchDrag)send({action:'mouse_move',...tCoords(e)});
+  if(e.touches.length===2){
+    // Two-finger horizontal scroll
+    const cx=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    const dx=(cx-twoFingerStartX)*0.5;
+    const dy=(cy-twoFingerStartY)*0.5;
+    if(Math.abs(dx)>2||Math.abs(dy)>2){
+      send({action:'scroll',dx:Math.round(dx),dy:Math.round(dy)});
+      twoFingerStartX=cx;
+      twoFingerStartY=cy;
+    }
+    return;
+  }
+  if(e.touches.length===1&&touchDrag){
+    const dx=e.touches[0].clientX-touchStartX;
+    const dy=e.touches[0].clientY-touchStartY;
+    // If moved more than 15px, it's a scroll
+    if(Math.abs(dy)>15||Math.abs(dx)>15){
+      touchDrag=false;
+      // Vertical scroll
+      if(Math.abs(dy)>Math.abs(dx)){
+        send({action:'scroll',dx:0,dy:Math.round(dy*0.3)});
+      }
+      touchStartX=e.touches[0].clientX;
+      touchStartY=e.touches[0].clientY;
+    }else{
+      send({action:'mouse_move',...tCoords(e)});
+    }
+  }
 },{passive:false});
+
 canvas.addEventListener('touchend',e=>{
-  e.preventDefault();touchDrag=false;
-  if(e.changedTouches&&e.changedTouches.length){
+  e.preventDefault();
+  touchDrag=false;
+  // If it was a short tap (<200ms) with minimal movement, it's a click
+  const elapsed=Date.now()-touchStartTime;
+  if(elapsed<200&&e.changedTouches&&e.changedTouches.length){
     const t=e.changedTouches[0],r=canvas.getBoundingClientRect();
-    send({action:'mouse_up',x:t.clientX-r.left,y:t.clientY-r.top,cw:cW,ch:cH,button:'left'});
+    send({action:'mouse_click',x:t.clientX-r.left,y:t.clientY-r.top,cw:cW,ch:cH,button:'left'});
   }
 },{passive:false});
 
 // === Canvas mouse ===
 canvas.addEventListener('mousemove',e=>{if(connected)send({action:'mouse_move',...tCoords(e)})});
 canvas.addEventListener('mousedown',e=>{if(!connected)return;e.preventDefault();send({action:'mouse_click',...tCoords(e),button:e.button===2?'right':'left'})});
+canvas.addEventListener('wheel',e=>{if(!connected)return;e.preventDefault();send({action:'scroll',dx:e.deltaX>0?3:e.deltaX<0?-3:0,dy:e.deltaY>0?3:e.deltaY<0?-3:0})},{passive:false});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
 // === Keyboard ===
 let shiftOn=false;
+const ruMap={'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь'};
+let ruMode=false;
+
 function sendKey(key,pressed){
   if(key==='shift'){shiftOn=pressed}
+  if(key==='alt'&&pressed){ruMode=!ruMode;return}
   let k=key;
-  if(shiftOn&&key.length===1&&/[a-z]/i.test(key))k=key.toUpperCase();
+  if(ruMode&&key.length===1&&/[a-z]/i.test(k)){k=ruMap[key.toLowerCase()]||key;if(shiftOn)k=k.toUpperCase()}
+  else if(shiftOn&&key.length===1&&/[a-z]/i.test(k)){k=k.toUpperCase()}
   else if(shiftOn){const sm={'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',',':'<','.':'>','/':'?'};if(sm[key])k=sm[key]}
-  send({action:'key',key:k,pressed});
+  send({action:'key_press',key:k});
 }
 
 document.querySelectorAll('.kbtn').forEach(btn=>{
   const key=btn.dataset.key;if(!key)return;
-  btn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();btn.classList.add('pressed');sendKey(key,true)},{passive:false});
-  btn.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();btn.classList.remove('pressed');sendKey(key,false)},{passive:false});
-  btn.addEventListener('touchcancel',()=>{btn.classList.remove('pressed');sendKey(key,false)});
-  btn.addEventListener('click',e=>{e.preventDefault();sendKey(key,true);setTimeout(()=>sendKey(key,false),50)});
+  btn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();btn.classList.add('pressed');sendKey(key)},{passive:false});
+  btn.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();btn.classList.remove('pressed')},{passive:false});
+  btn.addEventListener('touchcancel',()=>{btn.classList.remove('pressed')});
+  btn.addEventListener('click',e=>{e.preventDefault();sendKey(key)});
 });
 
 // === Controls ===
@@ -113,7 +193,7 @@ $('btnDisconnect').onclick=disconnect;
 if($('btnKeyboard'))$('btnKeyboard').onclick=()=>$('kbOverlay').classList.toggle('show');
 if($('kbClose'))$('kbClose').onclick=()=>$('kbOverlay').classList.remove('show');
 if($('btnStart2'))$('btnStart2').onclick=()=>send({action:'start_screen'});
-if($('btnCtrlAltDel'))$('btnCtrlAltDel').onclick=()=>{send({action:'key',key:'ctrl',pressed:true});send({action:'key',key:'alt',pressed:true});send({action:'key',key:'delete',pressed:true});setTimeout(()=>{send({action:'key',key:'delete',pressed:false});send({action:'key',key:'alt',pressed:false});send({action:'key',key:'ctrl',pressed:false})},100)};
+if($('btnCtrlAltDel'))$('btnCtrlAltDel').onclick=()=>{send({action:'key_press',key:'ctrl'});send({action:'key_press',key:'alt'});send({action:'key_press',key:'delete'})};
 if($('btnHome'))$('btnHome').onclick=()=>send({action:'list_dir',path:'/'});
 if($('btnGo'))$('btnGo').onclick=()=>send({action:'list_dir',path:$('filePath').value});
 if($('btnRefresh'))$('btnRefresh').onclick=()=>send({action:'sysinfo'});
