@@ -1,208 +1,289 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-    <title>Remote Desktop</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+(()=>{
+  const $=s=>document.getElementById(s);
+  let ws=null,connected=false,streaming=false,fc=0,lt=0;
+  let scrollMode=false, activeKeys=new Set();
 
-<!-- Login -->
-<div class="login-screen" id="loginScreen">
-    <div class="login-card">
-        <div class="login-icon"><i class="fa-solid fa-desktop"></i></div>
-        <h1>Remote Desktop</h1>
-        <p class="dim">Подключись к своему ПК</p>
-        <div class="fld"><label>Адрес сервера</label><input type="text" id="inpHost" placeholder="wss://xxxx.trycloudflare.com" autocapitalize="off" autocomplete="off"></div>
-        <div class="fld"><label>Пароль</label><input type="password" id="inpPass" placeholder="••••••"></div>
-        <button class="btn" id="btnConnect"><i class="fa-solid fa-plug"></i> Подключиться</button>
-        <div class="msg" id="loginMsg"></div>
-    </div>
-</div>
+  const tg=()=>{try{return window.Telegram?.WebApp||null}catch{return null}};
 
-<!-- Main app -->
-<div class="app hidden" id="app">
+  // === Connection ===
+  function connect(){
+    const h=$('inpHost').value.trim(),p=$('inpPass').value.trim();
+    if(!h||!p){ml('Заполните все поля','er');return}
 
-    <!-- Screen (основной вид) -->
-    <div class="screen-view active" id="screenView">
-        <div class="screen-wrap" id="screenWrap">
-            <canvas id="screenCanvas"></canvas>
-            <div class="screen-overlay" id="screenOverlay">
-                <i class="fa-solid fa-display"></i>
-                <span>Нажми "Старт" для захвата экрана</span>
-            </div>
-        </div>
+    // Auto-fix address format
+    let url=h;
+    if(url.startsWith('https://'))url='wss://'+url.slice(8);
+    else if(url.startsWith('http://'))url='ws://'+url.slice(7);
+    else if(!url.startsWith('ws://')&&!url.startsWith('wss://')){
+      if(url.includes('trycloudflare.com'))url='wss://'+url;
+      else url='ws://'+url;
+    }
+    $('inpHost').value=url;
 
-        <!-- Touch controls overlay -->
-        <div class="touch-controls" id="touchControls">
-            <button class="touch-btn" id="btnKeyboard"><i class="fa-solid fa-keyboard"></i></button>
-            <button class="touch-btn" id="btnScrollMode"><i class="fa-solid fa-hand"></i></button>
-            <button class="touch-btn" id="btnCtrlAltDel"><i class="fa-solid fa-power-off"></i></button>
-            <button class="touch-btn" id="btnStart2"><i class="fa-solid fa-play"></i></button>
-        </div>
+    try{ws=new WebSocket(url)}catch(e){ml('Неверный формат адреса. Пример: ws://192.168.1.100:8765','er');return}
+    ml('Подключение...','');
+    ws.onopen=()=>ws.send(JSON.stringify({action:'auth',password:p}));
+    ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+    ws.onerror=()=>ml('Сервер недоступен. Проверь:\n1. Сервер запущен\n2. Тот же WiFi\n3. Адрес верный','er');
+    ws.onclose=()=>setConn(false);
+  }
+  function disconnect(){if(ws){ws.close();ws=null}setConn(false);streaming=false}
+  function setConn(v){
+    connected=v;
+    $('connDot').className='conn-dot'+(v?' on':'');
+    $('connText').textContent=v?'Онлайн':'Офлайн';
+    if(v){$('loginScreen').classList.add('hidden');$('app').classList.remove('hidden')}
+  }
+  function ml(t,k){const e=$('loginMsg');if(!e)return;e.textContent=t||'';e.className='msg';if(k)e.classList.add(k)}
+  function send(d){if(ws&&ws.readyState===1)ws.send(JSON.stringify(d))}
 
-        <!-- Bottom bar -->
-        <div class="bottom-bar">
-            <div class="bb-left">
-                <span class="conn-dot" id="connDot"></span>
-                <span id="connText" class="conn-text">—</span>
-            </div>
-            <div class="bb-center">
-                <button class="bbtn active" data-tab="screen"><i class="fa-solid fa-display"></i></button>
-                <button class="bbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
-                <button class="bbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
-                <button class="bbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
-            </div>
-            <div class="bb-right">
-                <button class="bbtn" id="btnDisconnect"><i class="fa-solid fa-power-off"></i></button>
-            </div>
-        </div>
-    </div>
+  // === Messages ===
+  function handleMsg(m){
+    if(m.action==='auth_ok'){setConn(true);send({action:'sysinfo'});send({action:'start_screen'})}
+    if(m.action==='auth_fail')ml('Неверный пароль','er');
+    if(m.action==='screen_frame'||m.action==='screenshot')drawFrame(m.image,m.width,m.height);
+    if(m.action==='dir_list'){if(m.error){$('fileList').innerHTML='<div class="dim" style="padding:20px">'+m.error+'</div>';return}$('filePath').value=m.path;renderFiles(m.items)}
+    if(m.action==='cmd_result'){const o=$('termOutput');if(m.stdout)o.textContent+=m.stdout;if(m.stderr)o.textContent+=m.stderr;if(m.error)o.textContent+=m.error;o.textContent+='\n';o.scrollTop=o.scrollHeight}
+    if(m.action==='sysinfo'){
+      $('infoOs').textContent=(m.os||'')+' '+(m.os_version||'').substring(0,40);
+      $('infoHost').textContent=m.hostname||'—';
+      $('infoScreen').textContent=(m.screen_width||'?')+'x'+(m.screen_height||'?');
+      if(m.cpu_percent!=null){$('infoCpu').textContent=m.cpu_percent+'%';$('barCpu').style.width=m.cpu_percent+'%';$('barCpu').style.background=m.cpu_percent>80?'var(--er)':'var(--p)'}
+      if(m.ram_percent!=null){$('infoRam').textContent=m.ram_used_gb+'/'+m.ram_total_gb+' GB';$('barRam').style.width=m.ram_percent+'%';$('barRam').style.background=m.ram_percent>80?'var(--er)':'var(--p)'}
+      if(m.disk_percent!=null){$('infoDisk').textContent=m.disk_used_gb+'/'+m.disk_total_gb+' GB';$('barDisk').style.width=m.disk_percent+'%'}
+    }
+  }
 
-    <!-- Files -->
-    <div class="panel" id="panelFiles">
-        <div class="panel-head">
-            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
-            <h2>Файлы</h2>
-        </div>
-        <div class="file-bar">
-            <button class="ctrl-btn" id="btnHome"><i class="fa-solid fa-house"></i></button>
-            <input type="text" id="filePath" class="file-path" placeholder="Путь">
-            <button class="ctrl-btn" id="btnGo"><i class="fa-solid fa-arrow-right"></i></button>
-        </div>
-        <div class="file-list" id="fileList"></div>
-    </div>
+  // === Screen ===
+  const canvas=$('screenCanvas'),ctx=canvas.getContext('2d');
+  let cW=0,cH=0;
+  function drawFrame(b64,w,h){
+    const img=new Image();
+    img.onload=()=>{canvas.width=w;canvas.height=h;cW=w;cH=h;ctx.drawImage(img,0,0);$('screenOverlay').classList.add('hidden')};
+    img.src='data:image/jpeg;base64,'+b64;
+    fc++;const n=Date.now();if(n-lt>=1000){lt=n;fc=0}
+  }
 
-    <!-- Terminal -->
-    <div class="panel" id="panelTerminal">
-        <div class="panel-head">
-            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
-            <h2>Терминал</h2>
-        </div>
-        <div class="term-output" id="termOutput"></div>
-        <div class="term-input-row">
-            <span class="term-prompt">$</span>
-            <input type="text" id="termInput" class="term-input" placeholder="Команда...">
-            <button class="ctrl-btn" id="btnTermRun"><i class="fa-solid fa-play"></i></button>
-        </div>
-    </div>
+  // === Touch/Mouse on canvas ===
+  function coords(e){
+    const r=canvas.getBoundingClientRect();
+    let cx,cy;
+    if(e.touches&&e.touches.length){
+      cx=e.touches[0].clientX-r.left;
+      cy=e.touches[0].clientY-r.top;
+    }else{
+      cx=e.clientX-r.left;
+      cy=e.clientY-r.top;
+    }
+    return{x:cx,y:cy,cw:cW,ch:cH};
+  }
 
-    <!-- Sysinfo -->
-    <div class="panel" id="panelSysinfo">
-        <div class="panel-head">
-            <button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button>
-            <h2>Система</h2>
-        </div>
-        <div class="info-grid" id="infoGrid">
-            <div class="info-card"><div class="info-label">ОС</div><div class="info-value" id="infoOs">—</div></div>
-            <div class="info-card"><div class="info-label">Имя ПК</div><div class="info-value" id="infoHost">—</div></div>
-            <div class="info-card"><div class="info-label">Экран</div><div class="info-value" id="infoScreen">—</div></div>
-            <div class="info-card"><div class="info-label">CPU</div><div class="info-value" id="infoCpu">—</div><div class="info-bar"><div class="info-bar-fill" id="barCpu"></div></div></div>
-            <div class="info-card"><div class="info-label">RAM</div><div class="info-value" id="infoRam">—</div><div class="info-bar"><div class="info-bar-fill" id="barRam"></div></div></div>
-            <div class="info-card"><div class="info-label">Диск</div><div class="info-value" id="infoDisk">—</div><div class="info-bar"><div class="info-bar-fill" id="barDisk"></div></div></div>
-        </div>
-        <button class="btn" id="btnRefresh"><i class="fa-solid fa-arrows-rotate"></i> Обновить</button>
-    </div>
-</div>
+  let lastTap=0, tapTimeout=null, pinchDist=0;
 
-<!-- Virtual keyboard modal -->
-<div class="kb-overlay" id="kbOverlay">
-    <div class="kb-panel">
-        <div class="kb-head">
-            <span>Клавиатура</span>
-            <button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <!-- Special keys row -->
-        <div class="kb-row kb-special">
-            <button class="kbtn ks" data-key="escape">Esc</button>
-            <button class="kbtn ks" data-key="tab">Tab</button>
-            <button class="kbtn ks" data-key="ctrl">Ctrl</button>
-            <button class="kbtn ks" data-key="alt">Alt</button>
-            <button class="kbtn ks" data-key="shift">Shift</button>
-            <button class="kbtn ks" data-key="win">Win</button>
-        </div>
-        <!-- Number row -->
-        <div class="kb-row">
-            <button class="kbtn" data-key="`">`</button>
-            <button class="kbtn" data-key="1">1</button>
-            <button class="kbtn" data-key="2">2</button>
-            <button class="kbtn" data-key="3">3</button>
-            <button class="kbtn" data-key="4">4</button>
-            <button class="kbtn" data-key="5">5</button>
-            <button class="kbtn" data-key="6">6</button>
-            <button class="kbtn" data-key="7">7</button>
-            <button class="kbtn" data-key="8">8</button>
-            <button class="kbtn" data-key="9">9</button>
-            <button class="kbtn" data-key="0">0</button>
-            <button class="kbtn" data-key="-">-</button>
-            <button class="kbtn" data-key="=">=</button>
-            <button class="kbtn kwide" data-key="backspace"><i class="fa-solid fa-delete-left"></i></button>
-        </div>
-        <!-- QWERTY row -->
-        <div class="kb-row">
-            <button class="kbtn kwide" data-key="tab"><i class="fa-solid fa-right-left"></i></button>
-            <button class="kbtn" data-key="q">Q</button>
-            <button class="kbtn" data-key="w">W</button>
-            <button class="kbtn" data-key="e">E</button>
-            <button class="kbtn" data-key="r">R</button>
-            <button class="kbtn" data-key="t">T</button>
-            <button class="kbtn" data-key="y">Y</button>
-            <button class="kbtn" data-key="u">U</button>
-            <button class="kbtn" data-key="i">I</button>
-            <button class="kbtn" data-key="o">O</button>
-            <button class="kbtn" data-key="p">P</button>
-            <button class="kbtn" data-key="[">[</button>
-            <button class="kbtn" data-key="]">]</button>
-            <button class="kbtn" data-key="\\">\\</button>
-        </div>
-        <!-- Home row -->
-        <div class="kb-row">
-            <button class="kbtn kwide" data-key="capslock"><i class="fa-solid fa-lock"></i></button>
-            <button class="kbtn" data-key="a">A</button>
-            <button class="kbtn" data-key="s">S</button>
-            <button class="kbtn" data-key="d">D</button>
-            <button class="kbtn" data-key="f">F</button>
-            <button class="kbtn" data-key="g">G</button>
-            <button class="kbtn" data-key="h">H</button>
-            <button class="kbtn" data-key="j">J</button>
-            <button class="kbtn" data-key="k">K</button>
-            <button class="kbtn" data-key="l">L</button>
-            <button class="kbtn" data-key=";">;</button>
-            <button class="kbtn" data-key="'">'</button>
-            <button class="kbtn kwide" data-key="enter"><i class="fa-solid fa-turn-down"></i></button>
-        </div>
-        <!-- Bottom row -->
-        <div class="kb-row">
-            <button class="kbtn kwide" data-key="shift"><i class="fa-solid fa-arrow-up"></i></button>
-            <button class="kbtn" data-key="z">Z</button>
-            <button class="kbtn" data-key="x">X</button>
-            <button class="kbtn" data-key="c">C</button>
-            <button class="kbtn" data-key="v">V</button>
-            <button class="kbtn" data-key="b">B</button>
-            <button class="kbtn" data-key="n">N</button>
-            <button class="kbtn" data-key="m">M</button>
-            <button class="kbtn" data-key=",">,</button>
-            <button class="kbtn" data-key=".">.</button>
-            <button class="kbtn" data-key="/">/</button>
-            <button class="kbtn kwide" data-key="shift"><i class="fa-solid fa-arrow-up"></i></button>
-        </div>
-        <!-- Space row -->
-        <div class="kb-row">
-            <button class="kbtn ks" data-key="ctrl">Ctrl</button>
-            <button class="kbtn ks" data-key="alt">Alt</button>
-            <button class="kbtn ks" data-key="win">Win</button>
-            <button class="kbtn kspace" data-key="space"></button>
-            <button class="kbtn ks" data-key="left">◀</button>
-            <button class="kbtn ks" data-key="up">▲</button>
-            <button class="kbtn ks" data-key="down">▼</button>
-            <button class="kbtn ks" data-key="right">▶</button>
-        </div>
-    </div>
-</div>
+  // Mouse events (desktop)
+  canvas.addEventListener('mousemove',e=>{if(connected&&!scrollMode)send({action:'mouse_move',...coords(e)})});
+  canvas.addEventListener('mousedown',e=>{if(!connected)return;e.preventDefault();send({action:'mouse_down',...coords(e),button:e.button===2?'right':'left'})});
+  canvas.addEventListener('mouseup',e=>{if(!connected)return;send({action:'mouse_up',...coords(e),button:e.button===2?'right':'left'})});
+  canvas.addEventListener('wheel',e=>{if(!connected)return;e.preventDefault();send({action:'mouse_scroll',delta:e.deltaY>0?-1:1})},{passive:false});
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
-<script src="script.js"></script>
-</body>
-</html>
+  // Touch events (mobile)
+  canvas.addEventListener('touchstart',e=>{
+    if(!connected)return;
+    e.preventDefault();
+
+    // Two-finger scroll mode
+    if(e.touches.length===2){
+      scrollMode=true;
+      $('btnScrollMode').classList.add('active');
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      pinchDist=Math.sqrt(dx*dx+dy*dy);
+      return;
+    }
+
+    // Single tap — detect double-tap for right click
+    const now=Date.now();
+    if(now-lastTap<300){
+      // Double tap = right click
+      clearTimeout(tapTimeout);
+      send({action:'mouse_click',...coords(e),button:'right'});
+      lastTap=0;
+      return;
+    }
+    lastTap=now;
+
+    // Long press = right click (after 500ms)
+    const c=coords(e);
+    tapTimeout=setTimeout(()=>{
+      send({action:'mouse_click',...c,button:'right'});
+      tapTimeout=null;
+    },500);
+
+    // Start drag
+    send({action:'mouse_down',...c,button:'left'});
+  },{passive:false});
+
+  canvas.addEventListener('touchmove',e=>{
+    if(!connected)return;
+    e.preventDefault();
+
+    // Two-finger scroll
+    if(scrollMode&&e.touches.length===2){
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      const delta=dy>0?1:-1;
+      send({action:'mouse_scroll',delta});
+      return;
+    }
+
+    // Single finger drag
+    if(tapTimeout){clearTimeout(tapTimeout);tapTimeout=null}
+    send({action:'mouse_move',...coords(e)});
+  },{passive:false});
+
+  canvas.addEventListener('touchend',e=>{
+    if(!connected)return;
+    clearTimeout(tapTimeout);tapTimeout=null;
+    if(scrollMode&&e.touches.length<2){scrollMode=false;$('btnScrollMode').classList.remove('active')}
+    if(e.touches.length===0){
+      send({action:'mouse_up',x:0,y:0,cw:cW,ch:cH,button:'left'});
+    }
+  });
+
+  // === Keyboard ===
+  const keyMap={'Enter':'enter','Backspace':'backspace','Tab':'tab','Escape':'escape','Delete':'delete',
+    'ArrowUp':'up','ArrowDown':'down','ArrowLeft':'left','ArrowRight':'right',
+    ' ':'space','Control':'ctrl','Alt':'alt','Shift':'shift','Meta':'win'};
+
+  document.addEventListener('keydown',e=>{
+    if(!connected||e.target.tagName==='INPUT')return;
+    e.preventDefault();
+    const k=keyMap[e.key]||e.key.toLowerCase();
+    if(!activeKeys.has(k)){activeKeys.add(k);send({action:'key',key:k,pressed:true})}
+  });
+  document.addEventListener('keyup',e=>{
+    if(!connected||e.target.tagName==='INPUT')return;
+    const k=keyMap[e.key]||e.key.toLowerCase();
+    activeKeys.delete(k);
+    send({action:'key',key:k,pressed:false});
+  });
+
+  // === Virtual Keyboard ===
+  let shiftOn=false, ctrlOn=false, altOn=false, winOn=false;
+
+  function toggleKB(){$('kbOverlay').classList.toggle('show')}
+  function sendKey(key,pressed){
+    // Handle modifier states
+    if(key==='shift'){shiftOn=pressed;if(!pressed)$('kbOverlay').querySelectorAll('.kbtn').forEach(b=>{if(b.dataset.key==='shift')b.classList.remove('pressed')});else $('kbOverlay').querySelectorAll('[data-key="shift"]').forEach(b=>b.classList.add('pressed'))}
+    if(key==='ctrl'){ctrlOn=pressed;if(pressed)$('kbOverlay').querySelectorAll('[data-key="ctrl"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="ctrl"]').forEach(b=>b.classList.remove('pressed'))}
+    if(key==='alt'){altOn=pressed;if(pressed)$('kbOverlay').querySelectorAll('[data-key="alt"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="alt"]').forEach(b=>b.classList.remove('pressed'))}
+    if(key==='win'){winOn=pressed;if(pressed)$('kbOverlay').querySelectorAll('[data-key="win"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="win"]').forEach(b=>b.classList.remove('pressed'))}
+    if(key==='capslock'&&pressed){shiftOn=!shiftOn;if(shiftOn)$('kbOverlay').querySelectorAll('[data-key="shift"]').forEach(b=>b.classList.add('pressed'));else $('kbOverlay').querySelectorAll('[data-key="shift"]').forEach(b=>b.classList.remove('pressed'))}
+
+    // Apply shift for letters
+    let finalKey=key;
+    if(shiftOn&&key.length===1&&/[a-z]/i.test(key)){
+      finalKey=key.toUpperCase();
+    }else if(shiftOn){
+      const shiftMap={'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',',':'<','.':'>','/':'?'};
+      if(shiftMap[key])finalKey=shiftMap[key];
+    }
+
+    send({action:'key',key:finalKey,pressed});
+  }
+
+  document.querySelectorAll('.kbtn').forEach(btn=>{
+    const key=btn.dataset.key;
+    if(!key)return;
+
+    // Touch events for keyboard buttons
+    btn.addEventListener('touchstart',e=>{
+      e.preventDefault();e.stopPropagation();
+      btn.classList.add('pressed');
+      sendKey(key,true);
+    },{passive:false});
+
+    btn.addEventListener('touchend',e=>{
+      e.preventDefault();e.stopPropagation();
+      btn.classList.remove('pressed');
+      sendKey(key,false);
+    },{passive:false});
+
+    btn.addEventListener('touchcancel',e=>{
+      btn.classList.remove('pressed');
+      sendKey(key,false);
+    });
+  });
+
+  // === Tabs ===
+  document.querySelectorAll('.bbtn[data-tab]').forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll('.bbtn[data-tab]').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      document.querySelector('.screen-view').classList.remove('active');
+      btn.classList.add('active');
+      const tab=btn.dataset.tab;
+      if(tab==='screen'){document.querySelector('.screen-view').classList.add('active');return}
+      const panel=$('panel'+tab.charAt(0).toUpperCase()+tab.slice(1));
+      if(panel)panel.classList.add('active');
+    };
+  });
+
+  document.querySelectorAll('.pback').forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      document.querySelector('.screen-view').classList.add('active');
+      document.querySelectorAll('.bbtn[data-tab]').forEach(b=>b.classList.remove('active'));
+      document.querySelector('.bbtn[data-tab="screen"]').classList.add('active');
+    };
+  });
+
+  // === Controls ===
+  $('btnConnect').onclick=connect;
+  $('btnDisconnect').onclick=disconnect;
+  $('btnStart2').onclick=()=>{streaming=true;send({action:'start_screen'})};
+  $('btnKeyboard').onclick=toggleKB;
+  $('kbClose').onclick=toggleKB;
+  $('btnScrollMode').onclick=()=>{scrollMode=!scrollMode;$('btnScrollMode').classList.toggle('active',scrollMode)};
+  $('btnCtrlAltDel').onclick=()=>{send({action:'key',key:'ctrl',pressed:true});send({action:'key',key:'alt',pressed:true});send({action:'key',key:'delete',pressed:true});setTimeout(()=>{send({action:'key',key:'delete',pressed:false});send({action:'key',key:'alt',pressed:false});send({action:'key',key:'ctrl',pressed:false})},100)};
+  $('btnHome').onclick=()=>send({action:'list_dir',path:navigator.platform.includes('Win')?'C:\\':"/"});
+  $('btnGo').onclick=()=>send({action:'list_dir',path:$('filePath').value});
+  $('btnRefresh').onclick=()=>send({action:'sysinfo'});
+  $('termInput').addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&connected){
+      const c=$('termInput').value.trim();if(!c)return;
+      $('termOutput').textContent+='$ '+c+'\n';
+      send({action:'run_cmd',cmd:c});$('termInput').value='';
+    }
+  });
+  $('btnTermRun').onclick=()=>{
+    const c=$('termInput').value.trim();if(!c||!connected)return;
+    $('termOutput').textContent+='$ '+c+'\n';
+    send({action:'run_cmd',cmd:c});$('termInput').value='';
+  };
+
+  // === Files ===
+  function renderFiles(items){
+    const el=$('fileList');el.innerHTML='';
+    items.forEach(item=>{
+      const row=document.createElement('div');row.className='file-item';
+      const icon=item.is_dir?'fa-folder':'fa-file';
+      const size=item.is_dir?'':fmtSize(item.size);
+      row.innerHTML=`<i class="fa-solid ${icon}"></i><span class="file-name">${esc(item.name)}</span><span class="file-size">${size}</span>`;
+      row.onclick=()=>{
+        if(item.is_dir)send({action:'list_dir',path:item.path});
+        else send({action:'read_file',path:item.path});
+      };
+      el.appendChild(row);
+    });
+  }
+  function fmtSize(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(1)+' GB'}
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+  // === Init ===
+  $('inpPass').addEventListener('keydown',e=>{if(e.key==='Enter')connect()});
+
+  // Telegram WebApp
+  const a=tg();
+  if(a){try{a.expand()}catch{}try{a.ready()}catch{}}
+})();
