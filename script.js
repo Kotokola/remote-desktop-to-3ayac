@@ -12,10 +12,13 @@
 
     // Auto-fix address format
     let url=h;
-    if(!url.startsWith('ws://')&&!url.startsWith('wss://')){
-      url='ws://'+url;
-      $('inpHost').value=url;
+    if(url.startsWith('https://'))url='wss://'+url.slice(8);
+    else if(url.startsWith('http://'))url='ws://'+url.slice(7);
+    else if(!url.startsWith('ws://')&&!url.startsWith('wss://')){
+      if(url.includes('trycloudflare.com'))url='wss://'+url;
+      else url='ws://'+url;
     }
+    $('inpHost').value=url;
 
     try{ws=new WebSocket(url)}catch(e){ml('Неверный формат адреса. Пример: ws://192.168.1.100:8765','er');return}
     ml('Подключение...','');
