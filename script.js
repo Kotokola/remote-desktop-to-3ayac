@@ -16,7 +16,13 @@ function connect(){
   try{ws=new WebSocket(url)}catch(e){ml('Неверный адрес','er');return}
   ml('Подключение...','');
   ws.onopen=()=>ws.send(JSON.stringify({action:'auth',password:p}));
-  ws.onmessage=e=>{try{handleMsg(JSON.parse(e.data))}catch{}};
+  ws.onmessage=e=>{
+    try{
+      const m=JSON.parse(e.data);
+      if(m.action==='screen_frame')console.log('Кадр получен:',m.width+'x'+m.height,'base64:',m.image?.length);
+      handleMsg(m);
+    }catch(err){console.error('Ошибка парсинга:',err)}
+  };
   ws.onerror=()=>ml('Сервер недоступен','er');
   ws.onclose=()=>setConn(false);
 }
@@ -54,15 +60,18 @@ const canvas=$('screenCanvas'),ctx=canvas?canvas.getContext('2d'):null;
 let audioCtx=null,audioQueue=[];
 
 function drawFrame(b64,w,h){
-  if(!ctx)return;
+  if(!ctx){console.log('Нет контекста canvas');return}
   const img=new Image();
   img.onload=()=>{
     canvas.width=w;canvas.height=h;
     cW=w;cH=h;
     ctx.drawImage(img,0,0);
     $('screenOverlay').classList.add('hidden');
+    console.log('Кадр отрисован:',w+'x'+h);
   };
-  img.onerror=()=>{console.error('Ошибка загрузки кадра')};
+  img.onerror=()=>{
+    console.error('Ошибка загрузки изображения, размер base64:',b64.length);
+  };
   img.src='data:image/jpeg;base64,'+b64;
 }
 
