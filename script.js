@@ -35,7 +35,7 @@ function handleMsg(m){
   const a=m.action;
   if(a==='auth_ok'){setConn(true);send({action:'sysinfo'});send({action:'start_screen'})}
   if(a==='auth_fail')ml('Неверный пароль','er');
-  if(a==='screen_frame'||a==='screenshot')drawFrame(m.image,m.width,m.height);
+  if(a==='screen_frame'||a==='screenshot'){drawFrame(m.image,m.width,m.height)}
   if(a==='audio_frame')playAudio(m.data);
   if(a==='dir_list'){if(m.error){$('fileList').innerHTML='<div style="padding:20px;color:#888">'+m.error+'</div>';return}$('filePath').value=m.path;renderFiles(m.items)}
   if(a==='cmd_result'){const o=$('termOutput');if(m.stdout)o.textContent+=m.stdout;if(m.stderr)o.textContent+=m.stderr;if(m.error)o.textContent+=m.error;o.textContent+='\n';o.scrollTop=o.scrollHeight}
@@ -165,13 +165,14 @@ canvas.addEventListener('wheel',e=>{if(!connected)return;e.preventDefault();send
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
 // === Keyboard ===
-let shiftOn=false;
-const ruMap={'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь'};
-let ruMode=false;
+let shiftOn=false, ruMode=false;
+const ruMap={'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',
+',':',','.':'.',';':';',':':':','[':'х',']':'ъ','\\':'/',
+'`':'ё','ё':'`'};
 
 function sendKey(key,pressed){
-  if(key==='shift'){shiftOn=pressed}
   if(key==='alt'&&pressed){ruMode=!ruMode;return}
+  if(key==='shift'&&pressed){shiftOn=!shiftOn;return}
   let k=key;
   if(ruMode&&key.length===1&&/[a-z]/i.test(k)){k=ruMap[key.toLowerCase()]||key;if(shiftOn)k=k.toUpperCase()}
   else if(shiftOn&&key.length===1&&/[a-z]/i.test(k)){k=k.toUpperCase()}
