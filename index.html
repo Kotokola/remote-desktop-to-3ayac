@@ -64,12 +64,86 @@
 <div class="kb-overlay" id="kbOverlay">
 <div class="kb-panel">
 <div class="kb-head"><span>Клавиатура</span><button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button></div>
-<div class="kb-row"><button class="kbtn ks" data-key="escape">Esc</button><button class="kbtn ks" data-key="tab">Tab</button><button class="kbtn ks" data-key="ctrl">Ctrl</button><button class="kbtn ks ru-toggle" id="btnRu">RU</button><button class="kbtn ks" data-key="shift">Shift</button></div>
-<div class="kb-row"><button class="kbtn" data-key="`">`</button><button class="kbtn" data-key="1">1</button><button class="kbtn" data-key="2">2</button><button class="kbtn" data-key="3">3</button><button class="kbtn" data-key="4">4</button><button class="kbtn" data-key="5">5</button><button class="kbtn" data-key="6">6</button><button class="kbtn" data-key="7">7</button><button class="kbtn" data-key="8">8</button><button class="kbtn" data-key="9">9</button><button class="kbtn" data-key="0">0</button><button class="kbtn" data-key="-">-</button><button class="kbtn" data-key="=">=</button><button class="kbtn kwide" data-key="backspace">⌫</button></div>
-<div class="kb-row"><button class="kbtn" data-key="q">Q</button><button class="kbtn" data-key="w">W</button><button class="kbtn" data-key="e">E</button><button class="kbtn" data-key="r">R</button><button class="kbtn" data-key="t">T</button><button class="kbtn" data-key="y">Y</button><button class="kbtn" data-key="u">U</button><button class="kbtn" data-key="i">I</button><button class="kbtn" data-key="o">O</button><button class="kbtn" data-key="p">P</button><button class="kbtn" data-key="[">[</button><button class="kbtn" data-key="]">]</button></div>
-<div class="kb-row"><button class="kbtn" data-key="a">A</button><button class="kbtn" data-key="s">S</button><button class="kbtn" data-key="d">D</button><button class="kbtn" data-key="f">F</button><button class="kbtn" data-key="g">G</button><button class="kbtn" data-key="h">H</button><button class="kbtn" data-key="j">J</button><button class="kbtn" data-key="k">K</button><button class="kbtn" data-key="l">L</button><button class="kbtn" data-key=";">;</button><button class="kbtn" data-key="'">'</button><button class="kbtn kwide" data-key="enter">Enter</button></div>
-<div class="kb-row"><button class="kbtn" data-key="z">Z</button><button class="kbtn" data-key="x">X</button><button class="kbtn" data-key="c">C</button><button class="kbtn" data-key="v">V</button><button class="kbtn" data-key="b">B</button><button class="kbtn" data-key="n">N</button><button class="kbtn" data-key="m">M</button><button class="kbtn" data-key=",">,</button><button class="kbtn" data-key=".">.</button><button class="kbtn" data-key="/">/</button></div>
-<div class="kb-row"><button class="kbtn ks" data-key="ctrl">Ctrl</button><button class="kbtn ks" data-key="alt">Alt</button><button class="kbtn kspace" data-key="space">Пробел</button><button class="kbtn ks" data-key="left">◀</button><button class="kbtn ks" data-key="up">▲</button><button class="kbtn ks" data-key="down">▼</button><button class="kbtn ks" data-key="right">▶</button></div>
+<div class="kb-row">
+<button class="kbtn kmod" data-key="escape"><div class="klabel"><span class="ken">Esc</span></div></button>
+<button class="kbtn kmod" data-key="tab"><div class="klabel"><span class="ken">Tab</span></div></button>
+<button class="kbtn kmod" data-key="ctrl" id="kbCtrl1"><div class="klabel"><span class="ken">Ctrl</span></div></button>
+<button class="kbtn kmod" data-key="alt" id="kbAlt1"><div class="klabel"><span class="ken">Alt</span></div></button>
+<button class="kbtn kmod" data-key="shift" id="kbShift1"><div class="klabel"><span class="ken">Shift</span></div></button>
+<button class="kbtn-ru-toggle" id="btnRu">RU</button>
+</div>
+<div class="kb-row">
+<button class="kbtn" data-key="`"><div class="klabel"><span class="ken">` ~</span><span class="kru">ё</span></div></button>
+<button class="kbtn" data-key="1"><div class="klabel"><span class="ken">1 !</span><span class="kru">!</span></div></button>
+<button class="kbtn" data-key="2"><div class="klabel"><span class="ken">2 @</span><span class="kru">"</span></div></button>
+<button class="kbtn" data-key="3"><div class="klabel"><span class="ken">3 #</span><span class="kru">№</span></div></button>
+<button class="kbtn" data-key="4"><div class="klabel"><span class="ken">4 $</span><span class="kru">;</span></div></button>
+<button class="kbtn" data-key="5"><div class="klabel"><span class="ken">5 %</span><span class="kru">%</span></div></button>
+<button class="kbtn" data-key="6"><div class="klabel"><span class="ken">6 ^</span><span class="kru">:</span></div></button>
+<button class="kbtn" data-key="7"><div class="klabel"><span class="ken">7 &amp;</span><span class="kru">?</span></div></button>
+<button class="kbtn" data-key="8"><div class="klabel"><span class="ken">8 *</span><span class="kru">*</span></div></button>
+<button class="kbtn" data-key="9"><div class="klabel"><span class="ken">9 (</span><span class="kru">(</span></div></button>
+<button class="kbtn" data-key="0"><div class="klabel"><span class="ken">0 )</span><span class="kru">)</span></div></button>
+<button class="kbtn" data-key="-"><div class="klabel"><span class="ken">- _</span><span class="kru">_</span></div></button>
+<button class="kbtn" data-key="="><div class="klabel"><span class="ken">= +</span><span class="kru">+</span></div></button>
+<button class="kbtn kwide" data-key="backspace"><div class="klabel"><span class="ken">Backspace</span></div></button>
+</div>
+<div class="kb-row">
+<button class="kbtn kmod" data-key="tab"><div class="klabel"><span class="ken">Tab</span></div></button>
+<button class="kbtn" data-key="q"><div class="klabel"><span class="ken">Q</span><span class="kru">Й</span></div></button>
+<button class="kbtn" data-key="w"><div class="klabel"><span class="ken">W</span><span class="kru">Ц</span></div></button>
+<button class="kbtn" data-key="e"><div class="klabel"><span class="ken">E</span><span class="kru">У</span></div></button>
+<button class="kbtn" data-key="r"><div class="klabel"><span class="ken">R</span><span class="kru">К</span></div></button>
+<button class="kbtn" data-key="t"><div class="klabel"><span class="ken">T</span><span class="kru">Е</span></div></button>
+<button class="kbtn" data-key="y"><div class="klabel"><span class="ken">Y</span><span class="kru">Н</span></div></button>
+<button class="kbtn" data-key="u"><div class="klabel"><span class="ken">U</span><span class="kru">Г</span></div></button>
+<button class="kbtn" data-key="i"><div class="klabel"><span class="ken">I</span><span class="kru">Ш</span></div></button>
+<button class="kbtn" data-key="o"><div class="klabel"><span class="ken">O</span><span class="kru">Щ</span></div></button>
+<button class="kbtn" data-key="p"><div class="klabel"><span class="ken">P</span><span class="kru">З</span></div></button>
+<button class="kbtn" data-key="["><div class="klabel"><span class="ken">{ [</span><span class="kru">Х</span></div></button>
+<button class="kbtn" data-key="]"><div class="klabel"><span class="ken">} ]</span><span class="kru">Ъ</span></div></button>
+<button class="kbtn" data-key="\\"><div class="klabel"><span class="ken">| \</span></div></button>
+</div>
+<div class="kb-row">
+<button class="kbtn kmod" data-key="capslock"><div class="klabel"><span class="ken">Caps Lock</span></div></button>
+<button class="kbtn" data-key="a"><div class="klabel"><span class="ken">A</span><span class="kru">Ф</span></div></button>
+<button class="kbtn" data-key="s"><div class="klabel"><span class="ken">S</span><span class="kru">Ы</span></div></button>
+<button class="kbtn" data-key="d"><div class="klabel"><span class="ken">D</span><span class="kru">В</span></div></button>
+<button class="kbtn" data-key="f"><div class="klabel"><span class="ken">F</span><span class="kru">А</span></div></button>
+<button class="kbtn" data-key="g"><div class="klabel"><span class="ken">G</span><span class="kru">П</span></div></button>
+<button class="kbtn" data-key="h"><div class="klabel"><span class="ken">H</span><span class="kru">Р</span></div></button>
+<button class="kbtn" data-key="j"><div class="klabel"><span class="ken">J</span><span class="kru">О</span></div></button>
+<button class="kbtn" data-key="k"><div class="klabel"><span class="ken">K</span><span class="kru">Л</span></div></button>
+<button class="kbtn" data-key="l"><div class="klabel"><span class="ken">L</span><span class="kru">Д</span></div></button>
+<button class="kbtn" data-key=";"><div class="klabel"><span class="ken">; :</span><span class="kru">Ж</span></div></button>
+<button class="kbtn" data-key="'"><div class="klabel"><span class="ken">' "</span><span class="kru">Э</span></div></button>
+<button class="kbtn kwide" data-key="enter"><div class="klabel"><span class="ken">Enter</span></div></button>
+</div>
+<div class="kb-row">
+<button class="kbtn kmod" data-key="shift" id="kbShift2"><div class="klabel"><span class="ken">Shift</span></div></button>
+<button class="kbtn" data-key="z"><div class="klabel"><span class="ken">Z</span><span class="kru">Я</span></div></button>
+<button class="kbtn" data-key="x"><div class="klabel"><span class="ken">X</span><span class="kru">Ч</span></div></button>
+<button class="kbtn" data-key="c"><div class="klabel"><span class="ken">C</span><span class="kru">С</span></div></button>
+<button class="kbtn" data-key="v"><div class="klabel"><span class="ken">V</span><span class="kru">М</span></div></button>
+<button class="kbtn" data-key="b"><div class="klabel"><span class="ken">B</span><span class="kru">И</span></div></button>
+<button class="kbtn" data-key="n"><div class="klabel"><span class="ken">N</span><span class="kru">Т</span></div></button>
+<button class="kbtn" data-key="m"><div class="klabel"><span class="ken">M</span><span class="kru">Ь</span></div></button>
+<button class="kbtn" data-key=","><div class="klabel"><span class="ken">&lt; ,</span><span class="kru">Б</span></div></button>
+<button class="kbtn" data-key="."><div class="klabel"><span class="ken">&gt; .</span><span class="kru">Ю</span></div></button>
+<button class="kbtn" data-key="/"><div class="klabel"><span class="ken">? /</span></div></button>
+<button class="kbtn kmod" data-key="shift" id="kbShift3"><div class="klabel"><span class="ken">Shift</span></div></button>
+</div>
+<div class="kb-row">
+<button class="kbtn kmod" data-key="ctrl" id="kbCtrl2"><div class="klabel"><span class="ken">Ctrl</span></div></button>
+<button class="kbtn kmod" data-key="alt" id="kbAlt2"><div class="klabel"><span class="ken">Alt</span></div></button>
+<button class="kbtn kspace" data-key="space"><div class="klabel"><span class="ken">Пробел</span></div></button>
+<button class="kbtn kmod" data-key="alt" id="kbAlt3"><div class="klabel"><span class="ken">Alt</span></div></button>
+<button class="kbtn kmod" data-key="ctrl" id="kbCtrl3"><div class="klabel"><span class="ken">Ctrl</span></div></button>
+<button class="kbtn-arrow" data-key="left">◀</button>
+<button class="kbtn-arrow" data-key="down">▼</button>
+<button class="kbtn-arrow" data-key="up">▲</button>
+<button class="kbtn-arrow" data-key="right">▶</button>
+</div>
 </div>
 </div>
 
@@ -80,6 +154,7 @@ const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 let serverUrl = '', authenticated = false, streaming = false, cW = 0, cH = 0;
 let ruMode = false, shiftOn = false;
 const ruMap = {'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь','`':'ё','ё':'`'};
+const ruShiftMap = {'2':'"','3':'№','4':';','6':':','7':'?','\\':'/'};
 
 async function api(action, data = {}) {
     data.action = action;
@@ -196,14 +271,53 @@ canvas.addEventListener('mousedown', e => { if (!authenticated) return; e.preven
 canvas.addEventListener('wheel', e => { if (!authenticated) return; e.preventDefault(); api('scroll', { dx: e.deltaX > 0 ? 3 : e.deltaX < 0 ? -3 : 0, dy: e.deltaY > 0 ? 3 : e.deltaY < 0 ? -3 : 0 }); }, { passive: false });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-// Keyboard
+// Keyboard — sticky modifiers
+let shiftOn = false, ruMode = false, capsOn = false;
+const heldModifiers = { ctrl: false, alt: false, shift: false };
+
+function updateModifierUI() {
+    ['kbCtrl1','kbCtrl2','kbCtrl3'].forEach(id => { const e = $(id); if(e) e.classList.toggle('active', heldModifiers.ctrl); });
+    ['kbAlt1','kbAlt2','kbAlt3'].forEach(id => { const e = $(id); if(e) e.classList.toggle('active', heldModifiers.alt); });
+    ['kbShift1','kbShift2','kbShift3'].forEach(id => { const e = $(id); if(e) e.classList.toggle('active', heldModifiers.shift); });
+}
+
+function releaseModifier(mod) {
+    if (heldModifiers[mod]) {
+        heldModifiers[mod] = false;
+        api('key', { key: mod, pressed: false });
+        updateModifierUI();
+    }
+}
+
+function toggleModifier(mod) {
+    if (heldModifiers[mod]) {
+        releaseModifier(mod);
+    } else {
+        heldModifiers[mod] = true;
+        api('key', { key: mod, pressed: true });
+        updateModifierUI();
+    }
+}
+
 function sendKey(key) {
-    if (key === 'alt') { ruMode = !ruMode; $('btnRu').textContent = ruMode ? 'EN' : 'RU'; $('btnRu').classList.toggle('active', ruMode); return; }
-    if (key === 'shift') { shiftOn = !shiftOn; return; }
+    if (key === 'ctrl') { toggleModifier('ctrl'); return; }
+    if (key === 'alt') { toggleModifier('alt'); return; }
+    if (key === 'shift') { toggleModifier('shift'); return; }
+    if (key === 'capslock') { capsOn = !capsOn; return; }
+    if (key === 'escape' || key === 'tab' || key === 'backspace' || key === 'enter' || key === 'delete') {
+        api('key_press', { key: key });
+        return;
+    }
     let k = key;
-    if (ruMode && key.length === 1 && /[a-z]/i.test(k)) { k = ruMap[key.toLowerCase()] || key; if (shiftOn) k = k.toUpperCase(); }
-    else if (shiftOn && key.length === 1 && /[a-z]/i.test(k)) { k = k.toUpperCase(); }
-    else if (shiftOn) { const sm = {'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}'}; if (sm[key]) k = sm[key]; }
+    if (ruMode && key.length === 1 && /[a-z]/i.test(k)) {
+        k = ruMap[key.toLowerCase()] || key;
+        if (heldModifiers.shift || capsOn) k = k.toUpperCase();
+    } else if (heldModifiers.shift && key.length === 1 && /[a-z]/i.test(k)) {
+        k = capsOn ? k.toLowerCase() : k.toUpperCase();
+    } else if (heldModifiers.shift) {
+        if (ruMode && ruShiftMap[key]) k = ruShiftMap[key];
+        else { const sm = {'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}'}; if (sm[key]) k = sm[key]; }
+    }
     api('key_press', { key: k });
 }
 
@@ -220,7 +334,12 @@ $('btnConnect').onclick = connect;
 $('btnDisconnect').onclick = () => { streaming = false; $('app').classList.add('hidden'); $('loginScreen').classList.remove('hidden'); };
 $('btnKeyboard').onclick = () => $('kbOverlay').classList.toggle('show');
 $('kbClose').onclick = () => $('kbOverlay').classList.remove('show');
-$('btnCtrlAltDel').onclick = () => { api('key_press', { key: 'ctrl' }); api('key_press', { key: 'alt' }); api('key_press', { key: 'delete' }); };
+$('btnRu').onclick = () => { ruMode = !ruMode; $('btnRu').textContent = ruMode ? 'RU' : 'EN'; $('btnRu').classList.toggle('active', ruMode); };
+$('btnCtrlAltDel').onclick = () => {
+    api('key', { key: 'ctrl', pressed: true }); api('key', { key: 'alt', pressed: true });
+    setTimeout(() => { api('key_press', { key: 'delete' }); }, 50);
+    setTimeout(() => { api('key', { key: 'ctrl', pressed: false }); api('key', { key: 'alt', pressed: false }); }, 100);
+};
 $('btnHome').onclick = () => api('list_dir', { path: '/' });
 $('btnGo').onclick = () => api('list_dir', { path: $('filePath').value });
 $('btnRefresh').onclick = () => loadSysinfo();

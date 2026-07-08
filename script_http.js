@@ -131,17 +131,52 @@ canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
 function send(d){if(authenticated)api(d.action,d)}
 
-// === Keyboard ===
-let shiftOn=false,ruMode=false;
-const ruMap={'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь','`':'ё','ё':'`'};
+// === Keyboard — sticky modifiers ===
+let shiftOn=false,ruMode=false,capsOn=false;
+const heldModifiers={ctrl:false,alt:false,shift:false};
+const ruMap={'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':',','.':'.',';':';',':':':','[':'х',']':'ъ','\\':'/','`':'ё','ё':'`'};
+
+function updateModifierUI(){
+  ['kbCtrl1','kbCtrl2','kbCtrl3'].forEach(id=>{const e=$(id);if(e)e.classList.toggle('active',heldModifiers.ctrl)});
+  ['kbAlt1','kbAlt2','kbAlt3'].forEach(id=>{const e=$(id);if(e)e.classList.toggle('active',heldModifiers.alt)});
+  ['kbShift1','kbShift2','kbShift3'].forEach(id=>{const e=$(id);if(e)e.classList.toggle('active',heldModifiers.shift)});
+}
+
+function releaseModifier(mod){
+  if(heldModifiers[mod]){
+    heldModifiers[mod]=false;
+    send({action:'key_up',key:mod});
+    updateModifierUI();
+  }
+}
+
+function toggleModifier(mod){
+  if(heldModifiers[mod]){
+    releaseModifier(mod);
+  }else{
+    heldModifiers[mod]=true;
+    send({action:'key_down',key:mod});
+    updateModifierUI();
+  }
+}
 
 function sendKey(key){
+  if(key==='ctrl'){toggleModifier('ctrl');return}
   if(key==='alt'){ruMode=!ruMode;$('btnRu').textContent=ruMode?'EN':'RU';$('btnRu').classList.toggle('active',ruMode);return}
-  if(key==='shift'){shiftOn=!shiftOn;return}
+  if(key==='shift'){toggleModifier('shift');return}
+  if(key==='capslock'){capsOn=!capsOn;return}
+  if(key==='escape'||key==='tab'||key==='backspace'||key==='enter'||key==='delete'){
+    send({action:'key_press',key:key});return;
+  }
   let k=key;
-  if(ruMode&&key.length===1&&/[a-z]/i.test(k)){k=ruMap[key.toLowerCase()]||key;if(shiftOn)k=k.toUpperCase()}
-  else if(shiftOn&&key.length===1&&/[a-z]/i.test(k)){k=k.toUpperCase()}
-  else if(shiftOn){const sm={'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',',':'<','.':'>','/':'?'};if(sm[key])k=sm[key]}
+  if(ruMode&&key.length===1&&/[a-z]/i.test(k)){
+    k=ruMap[key.toLowerCase()]||key;
+    if(heldModifiers.shift||capsOn)k=k.toUpperCase();
+  }else if(heldModifiers.shift&&key.length===1&&/[a-z]/i.test(k)){
+    k=capsOn?k.toLowerCase():k.toUpperCase();
+  }else if(heldModifiers.shift){
+    const sm={'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}','\\':'|',';':':',',':'<','.':'>','/':'?'};if(sm[key])k=sm[key];
+  }
   send({action:'key_press',key:k});
 }
 
@@ -158,7 +193,12 @@ $('btnConnect').onclick=connect;
 $('btnDisconnect').onclick=disconnect;
 $('btnKeyboard').onclick=()=>$('kbOverlay').classList.toggle('show');
 $('kbClose').onclick=()=>$('kbOverlay').classList.remove('show');
-$('btnCtrlAltDel').onclick=()=>{send({action:'key_press',key:'ctrl'});send({action:'key_press',key:'alt'});send({action:'key_press',key:'delete'})};
+$('btnRu').onclick=()=>{ruMode=!ruMode;$('btnRu').textContent=ruMode?'EN':'RU';$('btnRu').classList.toggle('active',ruMode)};
+$('btnCtrlAltDel').onclick=()=>{
+  send({action:'key_down',key:'ctrl'});send({action:'key_down',key:'alt'});
+  setTimeout(()=>{send({action:'key_press',key:'delete'})},50);
+  setTimeout(()=>{send({action:'key_up',key:'ctrl'});send({action:'key_up',key:'alt'})},100);
+};
 $('btnHome').onclick=()=>send({action:'list_dir',path:'/'});
 $('btnGo').onclick=()=>send({action:'list_dir',path:$('filePath').value});
 $('btnRefresh').onclick=()=>loadSysinfo();
