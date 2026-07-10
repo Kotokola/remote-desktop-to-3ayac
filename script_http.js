@@ -39,7 +39,6 @@ function disconnect(){
   $('app').classList.add('hidden');
 }
 
-// === Screen stream via polling ===
 const canvas=$('screenCanvas'),ctx=canvas?canvas.getContext('2d'):null;
 
 function drawFrame(b64,w,h){
@@ -65,7 +64,6 @@ function startStream(){
   screenLoop();
 }
 
-// === Touch ===
 let touchDrag=false,touchStartX=0,touchStartY=0,touchStartTime=0;
 let twoStartX=0,twoStartY=0;
 
@@ -131,7 +129,6 @@ canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
 function send(d){if(authenticated)api(d.action,d)}
 
-// === Keyboard — sticky modifiers ===
 let shiftOn=false,ruMode=false,capsOn=false;
 const heldModifiers={ctrl:false,alt:false,shift:false};
 const ruMap={'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь',',':',','.':'.',';':';',':':':','[':'х',']':'ъ','\\':'/','`':'ё','ё':'`'};
@@ -188,7 +185,6 @@ document.querySelectorAll('.kbtn').forEach(btn=>{
   btn.addEventListener('click',e=>{e.preventDefault();sendKey(key)});
 });
 
-// === Controls ===
 $('btnConnect').onclick=connect;
 $('btnDisconnect').onclick=disconnect;
 $('btnKeyboard').onclick=()=>$('kbOverlay').classList.toggle('show');
@@ -223,7 +219,6 @@ async function loadSysinfo(){
   if(r.disk_percent!=null){$('infoDisk').textContent=r.disk_used_gb+'/'+r.disk_total_gb+' GB';$('barDisk').style.width=r.disk_percent+'%'}
 }
 
-// === Tabs ===
 document.querySelectorAll('.bbtn[data-tab]').forEach(b=>{
   b.onclick=()=>{
     document.querySelectorAll('.bbtn[data-tab]').forEach(x=>x.classList.remove('act'));
