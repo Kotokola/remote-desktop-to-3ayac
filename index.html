@@ -1,404 +1,151 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Remote Desktop</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>Remote Desktop</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="login-screen" id="loginScreen">
-<div class="login-card">
-<div class="login-icon"><i class="fa-solid fa-desktop"></i></div>
-<h1>Remote Desktop</h1>
-<p class="dim">Подключись к своему ПК</p>
-<div class="fld"><label>Адрес сервера</label><input type="text" id="inpHost" placeholder="http://IP:8765" autocapitalize="off"></div>
-<div class="fld"><label>Пароль</label><input type="password" id="inpPass" placeholder="••••••"></div>
-<button class="btn" id="btnConnect"><i class="fa-solid fa-plug"></i> Подключиться</button>
-<div class="msg" id="loginMsg"></div>
-</div>
+    <div class="login-card">
+        <div class="login-icon"><i class="fa-solid fa-desktop"></i></div>
+        <h1>Remote Desktop</h1>
+        <p class="dim">Подключись к своему ПК</p>
+        <div class="fld"><label>Адрес сервера</label><input type="text" id="inpHost" placeholder="https://xxxx.trycloudflare.com" autocapitalize="off"></div>
+        <div class="fld"><label>Пароль</label><input type="password" id="inpPass" placeholder="••••••"></div>
+        <button class="btn" id="btnConnect"><i class="fa-solid fa-plug"></i> Подключиться</button>
+        <div class="msg" id="loginMsg"></div>
+    </div>
 </div>
 <div class="app hidden" id="app">
-<div class="screen-view act" id="screenView">
-<div class="screen-wrap"><canvas id="screenCanvas"></canvas></div>
-<div class="touch-controls">
-<button class="touch-btn" id="btnKeyboard"><i class="fa-solid fa-keyboard"></i></button>
-<button class="touch-btn" id="btnCtrlAltDel"><i class="fa-solid fa-power-off"></i></button>
-</div>
-<div class="bottom-bar">
-<div class="bb-left"><span class="conn-dot on"></span><span class="conn-text">Онлайн</span></div>
-<div class="bb-center">
-<button class="bbtn act" data-tab="screen"><i class="fa-solid fa-display"></i></button>
-<button class="bbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
-<button class="bbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
-<button class="bbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
-</div>
-<div class="bb-right"><button class="bbtn" id="btnDisconnect"><i class="fa-solid fa-power-off"></i></button></div>
-</div>
-</div>
-<div class="panel" id="panelFiles">
-<div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Файлы</h2></div>
-<div class="file-bar"><button class="ctrl-btn" id="btnHome"><i class="fa-solid fa-house"></i></button><input type="text" id="filePath" class="file-path" placeholder="Путь"><button class="ctrl-btn" id="btnGo"><i class="fa-solid fa-arrow-right"></i></button></div>
-<div class="file-list" id="fileList"></div>
-</div>
-<div class="panel" id="panelTerminal">
-<div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Терминал</h2></div>
-<div class="term-output" id="termOutput"></div>
-<div class="term-input-row"><span class="term-prompt">$</span><input type="text" id="termInput" class="term-input" placeholder="Команда..."><button class="ctrl-btn" id="btnTermRun"><i class="fa-solid fa-play"></i></button></div>
-</div>
-<div class="panel" id="panelSysinfo">
-<div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Система</h2></div>
-<div class="info-grid">
-<div class="info-card"><div class="info-label">ОС</div><div class="info-value" id="infoOs">—</div></div>
-<div class="info-card"><div class="info-label">Имя ПК</div><div class="info-value" id="infoHost">—</div></div>
-<div class="info-card"><div class="info-label">Экран</div><div class="info-value" id="infoScreen">—</div></div>
-<div class="info-card"><div class="info-label">CPU</div><div class="info-value" id="infoCpu">—</div><div class="info-bar"><div class="info-bar-fill" id="barCpu"></div></div></div>
-<div class="info-card"><div class="info-label">RAM</div><div class="info-value" id="infoRam">—</div><div class="info-bar"><div class="info-bar-fill" id="barRam"></div></div></div>
-<div class="info-card"><div class="info-label">Диск</div><div class="info-value" id="infoDisk">—</div><div class="info-bar"><div class="info-bar-fill" id="barDisk"></div></div></div>
-</div>
-<button class="btn" id="btnRefresh"><i class="fa-solid fa-arrows-rotate"></i> Обновить</button>
-</div>
+    <div class="screen-view act" id="screenView">
+        <div class="screen-wrap"><canvas id="screenCanvas"></canvas></div>
+        <div class="touch-controls">
+            <button class="touch-btn" id="btnKeyboard"><i class="fa-solid fa-keyboard"></i></button>
+            <button class="touch-btn" id="btnCtrlAltDel"><i class="fa-solid fa-power-off"></i></button>
+        </div>
+        <div class="bottom-bar">
+            <div class="bb-left"><span class="conn-dot on" id="connDot"></span><span id="connText" class="conn-text">Онлайн</span></div>
+            <div class="bb-center">
+                <button class="bbtn act" data-tab="screen"><i class="fa-solid fa-display"></i></button>
+                <button class="bbtn" data-tab="files"><i class="fa-solid fa-folder"></i></button>
+                <button class="bbtn" data-tab="terminal"><i class="fa-solid fa-terminal"></i></button>
+                <button class="bbtn" data-tab="sysinfo"><i class="fa-solid fa-chart-simple"></i></button>
+            </div>
+            <div class="bb-right"><button class="bbtn" id="btnDisconnect"><i class="fa-solid fa-power-off"></i></button></div>
+        </div>
+    </div>
+    <div class="panel" id="panelFiles">
+        <div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Файлы</h2></div>
+        <div class="file-bar"><button class="ctrl-btn" id="btnHome"><i class="fa-solid fa-house"></i></button><input type="text" id="filePath" class="file-path" placeholder="Путь"><button class="ctrl-btn" id="btnGo"><i class="fa-solid fa-arrow-right"></i></button></div>
+        <div class="file-list" id="fileList"></div>
+    </div>
+    <div class="panel" id="panelTerminal">
+        <div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Терминал</h2></div>
+        <div class="term-output" id="termOutput"></div>
+        <div class="term-input-row"><span class="term-prompt">$</span><input type="text" id="termInput" class="term-input" placeholder="Команда..."><button class="ctrl-btn" id="btnTermRun"><i class="fa-solid fa-play"></i></button></div>
+    </div>
+    <div class="panel" id="panelSysinfo">
+        <div class="panel-head"><button class="pback" data-back="screen"><i class="fa-solid fa-arrow-left"></i></button><h2>Система</h2></div>
+        <div class="info-grid">
+            <div class="info-card"><div class="info-label">ОС</div><div class="info-value" id="infoOs">—</div></div>
+            <div class="info-card"><div class="info-label">Имя ПК</div><div class="info-value" id="infoHost">—</div></div>
+            <div class="info-card"><div class="info-label">Экран</div><div class="info-value" id="infoScreen">—</div></div>
+            <div class="info-card"><div class="info-label">CPU</div><div class="info-value" id="infoCpu">—</div><div class="info-bar"><div class="info-bar-fill" id="barCpu"></div></div></div>
+            <div class="info-card"><div class="info-label">RAM</div><div class="info-value" id="infoRam">—</div><div class="info-bar"><div class="info-bar-fill" id="barRam"></div></div></div>
+            <div class="info-card"><div class="info-label">Диск</div><div class="info-value" id="infoDisk">—</div><div class="info-bar"><div class="info-bar-fill" id="barDisk"></div></div></div>
+        </div>
+        <button class="btn" id="btnRefresh"><i class="fa-solid fa-arrows-rotate"></i> Обновить</button>
+    </div>
 </div>
 <div class="kb-overlay" id="kbOverlay">
-<div class="kb-panel">
-<div class="kb-head"><span>Клавиатура</span><button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button></div>
-<div class="kb-row">
-<button class="kbtn kmod" data-key="escape"><div class="klabel"><span class="ken">Esc</span></div></button>
-<button class="kbtn kmod" data-key="tab"><div class="klabel"><span class="ken">Tab</span></div></button>
-<button class="kbtn kmod" data-key="ctrl" id="kbCtrl1"><div class="klabel"><span class="ken">Ctrl</span></div></button>
-<button class="kbtn kmod" data-key="alt" id="kbAlt1"><div class="klabel"><span class="ken">Alt</span></div></button>
-<button class="kbtn kmod" data-key="shift" id="kbShift1"><div class="klabel"><span class="ken">Shift</span></div></button>
-<button class="kbtn-ru-toggle" id="btnRu">RU</button>
+    <div class="kb-panel">
+        <div class="kb-head"><span>Клавиатура</span><button class="kb-close" id="kbClose"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="kb-row">
+            <button class="kbtn kmod" data-key="escape"><div class="klabel"><span class="ken">Esc</span></div></button>
+            <button class="kbtn kmod" data-key="tab"><div class="klabel"><span class="ken">Tab</span></div></button>
+            <button class="kbtn kmod" data-key="ctrl" id="kbCtrl1"><div class="klabel"><span class="ken">Ctrl</span></div></button>
+            <button class="kbtn kmod" data-key="alt" id="kbAlt1"><div class="klabel"><span class="ken">Alt</span></div></button>
+            <button class="kbtn kmod" data-key="shift" id="kbShift1"><div class="klabel"><span class="ken">Shift</span></div></button>
+            <button class="kbtn-ru-toggle" id="btnRu">RU</button>
+        </div>
+        <div class="kb-row">
+            <button class="kbtn" data-key="`"><div class="klabel"><span class="ken">` ~</span><span class="kru">ё</span></div></button>
+            <button class="kbtn" data-key="1"><div class="klabel"><span class="ken">1 !</span><span class="kru">2 "</span></div></button>
+            <button class="kbtn" data-key="2"><div class="klabel"><span class="ken">2 @</span><span class="kru">3 №</span></div></button>
+            <button class="kbtn" data-key="3"><div class="klabel"><span class="ken">3 #</span><span class="kru">4 ;</span></div></button>
+            <button class="kbtn" data-key="4"><div class="klabel"><span class="ken">4 $</span><span class="kru">5 %</span></div></button>
+            <button class="kbtn" data-key="5"><div class="klabel"><span class="ken">5 %</span><span class="kru">6 :</span></div></button>
+            <button class="kbtn" data-key="6"><div class="klabel"><span class="ken">6 ^</span><span class="kru">7 ?</span></div></button>
+            <button class="kbtn" data-key="7"><div class="klabel"><span class="ken">7 &amp;</span><span class="kru">8 *</span></div></button>
+            <button class="kbtn" data-key="8"><div class="klabel"><span class="ken">8 *</span><span class="kru">9 (</span></div></button>
+            <button class="kbtn" data-key="9"><div class="klabel"><span class="ken">9 (</span><span class="kru">0 )</span></div></button>
+            <button class="kbtn" data-key="0"><div class="klabel"><span class="ken">0 )</span><span class="kru">- _</span></div></button>
+            <button class="kbtn" data-key="-"><div class="klabel"><span class="ken">- _</span><span class="kru">= +</span></div></button>
+            <button class="kbtn" data-key="="><div class="klabel"><span class="ken">= +</span></div></button>
+            <button class="kbtn kwide" data-key="backspace"><div class="klabel"><span class="ken">Backspace</span></div></button>
+        </div>
+        <div class="kb-row">
+            <button class="kbtn kmod" data-key="tab"><div class="klabel"><span class="ken">Tab</span></div></button>
+            <button class="kbtn" data-key="q"><div class="klabel"><span class="ken">Q</span><span class="kru">Й</span></div></button>
+            <button class="kbtn" data-key="w"><div class="klabel"><span class="ken">W</span><span class="kru">Ц</span></div></button>
+            <button class="kbtn" data-key="e"><div class="klabel"><span class="ken">E</span><span class="kru">У</span></div></button>
+            <button class="kbtn" data-key="r"><div class="klabel"><span class="ken">R</span><span class="kru">К</span></div></button>
+            <button class="kbtn" data-key="t"><div class="klabel"><span class="ken">T</span><span class="kru">Е</span></div></button>
+            <button class="kbtn" data-key="y"><div class="klabel"><span class="ken">Y</span><span class="kru">Н</span></div></button>
+            <button class="kbtn" data-key="u"><div class="klabel"><span class="ken">U</span><span class="kru">Г</span></div></button>
+            <button class="kbtn" data-key="i"><div class="klabel"><span class="ken">I</span><span class="kru">Ш</span></div></button>
+            <button class="kbtn" data-key="o"><div class="klabel"><span class="ken">O</span><span class="kru">Щ</span></div></button>
+            <button class="kbtn" data-key="p"><div class="klabel"><span class="ken">P</span><span class="kru">З</span></div></button>
+            <button class="kbtn" data-key="["><div class="klabel"><span class="ken">{ [</span><span class="kru">Х</span></div></button>
+            <button class="kbtn" data-key="]"><div class="klabel"><span class="ken">} ]</span><span class="kru">Ъ</span></div></button>
+            <button class="kbtn" data-key="\\"><div class="klabel"><span class="ken">| \</span></div></button>
+        </div>
+        <div class="kb-row">
+            <button class="kbtn kmod" data-key="capslock"><div class="klabel"><span class="ken">Caps Lock</span></div></button>
+            <button class="kbtn" data-key="a"><div class="klabel"><span class="ken">A</span><span class="kru">Ф</span></div></button>
+            <button class="kbtn" data-key="s"><div class="klabel"><span class="ken">S</span><span class="kru">Ы</span></div></button>
+            <button class="kbtn" data-key="d"><div class="klabel"><span class="ken">D</span><span class="kru">В</span></div></button>
+            <button class="kbtn" data-key="f"><div class="klabel"><span class="ken">F</span><span class="kru">А</span></div></button>
+            <button class="kbtn" data-key="g"><div class="klabel"><span class="ken">G</span><span class="kru">П</span></div></button>
+            <button class="kbtn" data-key="h"><div class="klabel"><span class="ken">H</span><span class="kru">Р</span></div></button>
+            <button class="kbtn" data-key="j"><div class="klabel"><span class="ken">J</span><span class="kru">О</span></div></button>
+            <button class="kbtn" data-key="k"><div class="klabel"><span class="ken">K</span><span class="kru">Л</span></div></button>
+            <button class="kbtn" data-key="l"><div class="klabel"><span class="ken">L</span><span class="kru">Д</span></div></button>
+            <button class="kbtn" data-key=";"><div class="klabel"><span class="ken">; :</span><span class="kru">Ж</span></div></button>
+            <button class="kbtn" data-key="'"><div class="klabel"><span class="ken">' "</span><span class="kru">Э</span></div></button>
+            <button class="kbtn kwide" data-key="enter"><div class="klabel"><span class="ken">Enter</span></div></button>
+        </div>
+        <div class="kb-row">
+            <button class="kbtn kmod" data-key="shift" id="kbShift2"><div class="klabel"><span class="ken">Shift</span></div></button>
+            <button class="kbtn" data-key="z"><div class="klabel"><span class="ken">Z</span><span class="kru">Я</span></div></button>
+            <button class="kbtn" data-key="x"><div class="klabel"><span class="ken">X</span><span class="kru">Ч</span></div></button>
+            <button class="kbtn" data-key="c"><div class="klabel"><span class="ken">C</span><span class="kru">С</span></div></button>
+            <button class="kbtn" data-key="v"><div class="klabel"><span class="ken">V</span><span class="kru">М</span></div></button>
+            <button class="kbtn" data-key="b"><div class="klabel"><span class="ken">B</span><span class="kru">И</span></div></button>
+            <button class="kbtn" data-key="n"><div class="klabel"><span class="ken">N</span><span class="kru">Т</span></div></button>
+            <button class="kbtn" data-key="m"><div class="klabel"><span class="ken">M</span><span class="kru">Ь</span></div></button>
+            <button class="kbtn" data-key=","><div class="klabel"><span class="ken">&lt; ,</span><span class="kru">Б</span></div></button>
+            <button class="kbtn" data-key="."><div class="klabel"><span class="ken">&gt; .</span><span class="kru">Ю</span></div></button>
+            <button class="kbtn" data-key="/"><div class="klabel"><span class="ken">? /</span></div></button>
+            <button class="kbtn kmod" data-key="shift" id="kbShift3"><div class="klabel"><span class="ken">Shift</span></div></button>
+        </div>
+        <div class="kb-row">
+            <button class="kbtn kmod" data-key="ctrl" id="kbCtrl2"><div class="klabel"><span class="ken">Ctrl</span></div></button>
+            <button class="kbtn kmod" data-key="alt" id="kbAlt2"><div class="klabel"><span class="ken">Alt</span></div></button>
+            <button class="kbtn kspace" data-key="space"><div class="klabel"><span class="ken">Пробел</span></div></button>
+            <button class="kbtn kmod" data-key="alt" id="kbAlt3"><div class="klabel"><span class="ken">Alt</span></div></button>
+            <button class="kbtn kmod" data-key="ctrl" id="kbCtrl3"><div class="klabel"><span class="ken">Ctrl</span></div></button>
+            <button class="kbtn-arrow" data-key="left">◀</button>
+            <button class="kbtn-arrow" data-key="down">▼</button>
+            <button class="kbtn-arrow" data-key="up">▲</button>
+            <button class="kbtn-arrow" data-key="right">▶</button>
+        </div>
+    </div>
 </div>
-<div class="kb-row">
-<button class="kbtn" data-key="`"><div class="klabel"><span class="ken">` ~</span><span class="kru">ё</span></div></button>
-<button class="kbtn" data-key="1"><div class="klabel"><span class="ken">1 !</span><span class="kru">!</span></div></button>
-<button class="kbtn" data-key="2"><div class="klabel"><span class="ken">2 @</span><span class="kru">"</span></div></button>
-<button class="kbtn" data-key="3"><div class="klabel"><span class="ken">3 #</span><span class="kru">№</span></div></button>
-<button class="kbtn" data-key="4"><div class="klabel"><span class="ken">4 $</span><span class="kru">;</span></div></button>
-<button class="kbtn" data-key="5"><div class="klabel"><span class="ken">5 %</span><span class="kru">%</span></div></button>
-<button class="kbtn" data-key="6"><div class="klabel"><span class="ken">6 ^</span><span class="kru">:</span></div></button>
-<button class="kbtn" data-key="7"><div class="klabel"><span class="ken">7 &amp;</span><span class="kru">?</span></div></button>
-<button class="kbtn" data-key="8"><div class="klabel"><span class="ken">8 *</span><span class="kru">*</span></div></button>
-<button class="kbtn" data-key="9"><div class="klabel"><span class="ken">9 (</span><span class="kru">(</span></div></button>
-<button class="kbtn" data-key="0"><div class="klabel"><span class="ken">0 )</span><span class="kru">)</span></div></button>
-<button class="kbtn" data-key="-"><div class="klabel"><span class="ken">- _</span><span class="kru">_</span></div></button>
-<button class="kbtn" data-key="="><div class="klabel"><span class="ken">= +</span><span class="kru">+</span></div></button>
-<button class="kbtn kwide" data-key="backspace"><div class="klabel"><span class="ken">Backspace</span></div></button>
-</div>
-<div class="kb-row">
-<button class="kbtn kmod" data-key="tab"><div class="klabel"><span class="ken">Tab</span></div></button>
-<button class="kbtn" data-key="q"><div class="klabel"><span class="ken">Q</span><span class="kru">Й</span></div></button>
-<button class="kbtn" data-key="w"><div class="klabel"><span class="ken">W</span><span class="kru">Ц</span></div></button>
-<button class="kbtn" data-key="e"><div class="klabel"><span class="ken">E</span><span class="kru">У</span></div></button>
-<button class="kbtn" data-key="r"><div class="klabel"><span class="ken">R</span><span class="kru">К</span></div></button>
-<button class="kbtn" data-key="t"><div class="klabel"><span class="ken">T</span><span class="kru">Е</span></div></button>
-<button class="kbtn" data-key="y"><div class="klabel"><span class="ken">Y</span><span class="kru">Н</span></div></button>
-<button class="kbtn" data-key="u"><div class="klabel"><span class="ken">U</span><span class="kru">Г</span></div></button>
-<button class="kbtn" data-key="i"><div class="klabel"><span class="ken">I</span><span class="kru">Ш</span></div></button>
-<button class="kbtn" data-key="o"><div class="klabel"><span class="ken">O</span><span class="kru">Щ</span></div></button>
-<button class="kbtn" data-key="p"><div class="klabel"><span class="ken">P</span><span class="kru">З</span></div></button>
-<button class="kbtn" data-key="["><div class="klabel"><span class="ken">{ [</span><span class="kru">Х</span></div></button>
-<button class="kbtn" data-key="]"><div class="klabel"><span class="ken">} ]</span><span class="kru">Ъ</span></div></button>
-<button class="kbtn" data-key="\\"><div class="klabel"><span class="ken">| \</span></div></button>
-</div>
-<div class="kb-row">
-<button class="kbtn kmod" data-key="capslock"><div class="klabel"><span class="ken">Caps Lock</span></div></button>
-<button class="kbtn" data-key="a"><div class="klabel"><span class="ken">A</span><span class="kru">Ф</span></div></button>
-<button class="kbtn" data-key="s"><div class="klabel"><span class="ken">S</span><span class="kru">Ы</span></div></button>
-<button class="kbtn" data-key="d"><div class="klabel"><span class="ken">D</span><span class="kru">В</span></div></button>
-<button class="kbtn" data-key="f"><div class="klabel"><span class="ken">F</span><span class="kru">А</span></div></button>
-<button class="kbtn" data-key="g"><div class="klabel"><span class="ken">G</span><span class="kru">П</span></div></button>
-<button class="kbtn" data-key="h"><div class="klabel"><span class="ken">H</span><span class="kru">Р</span></div></button>
-<button class="kbtn" data-key="j"><div class="klabel"><span class="ken">J</span><span class="kru">О</span></div></button>
-<button class="kbtn" data-key="k"><div class="klabel"><span class="ken">K</span><span class="kru">Л</span></div></button>
-<button class="kbtn" data-key="l"><div class="klabel"><span class="ken">L</span><span class="kru">Д</span></div></button>
-<button class="kbtn" data-key=";"><div class="klabel"><span class="ken">; :</span><span class="kru">Ж</span></div></button>
-<button class="kbtn" data-key="'"><div class="klabel"><span class="ken">' "</span><span class="kru">Э</span></div></button>
-<button class="kbtn kwide" data-key="enter"><div class="klabel"><span class="ken">Enter</span></div></button>
-</div>
-<div class="kb-row">
-<button class="kbtn kmod" data-key="shift" id="kbShift2"><div class="klabel"><span class="ken">Shift</span></div></button>
-<button class="kbtn" data-key="z"><div class="klabel"><span class="ken">Z</span><span class="kru">Я</span></div></button>
-<button class="kbtn" data-key="x"><div class="klabel"><span class="ken">X</span><span class="kru">Ч</span></div></button>
-<button class="kbtn" data-key="c"><div class="klabel"><span class="ken">C</span><span class="kru">С</span></div></button>
-<button class="kbtn" data-key="v"><div class="klabel"><span class="ken">V</span><span class="kru">М</span></div></button>
-<button class="kbtn" data-key="b"><div class="klabel"><span class="ken">B</span><span class="kru">И</span></div></button>
-<button class="kbtn" data-key="n"><div class="klabel"><span class="ken">N</span><span class="kru">Т</span></div></button>
-<button class="kbtn" data-key="m"><div class="klabel"><span class="ken">M</span><span class="kru">Ь</span></div></button>
-<button class="kbtn" data-key=","><div class="klabel"><span class="ken">&lt; ,</span><span class="kru">Б</span></div></button>
-<button class="kbtn" data-key="."><div class="klabel"><span class="ken">&gt; .</span><span class="kru">Ю</span></div></button>
-<button class="kbtn" data-key="/"><div class="klabel"><span class="ken">? /</span></div></button>
-<button class="kbtn kmod" data-key="shift" id="kbShift3"><div class="klabel"><span class="ken">Shift</span></div></button>
-</div>
-<div class="kb-row">
-<button class="kbtn kmod" data-key="ctrl" id="kbCtrl2"><div class="klabel"><span class="ken">Ctrl</span></div></button>
-<button class="kbtn kmod" data-key="alt" id="kbAlt2"><div class="klabel"><span class="ken">Alt</span></div></button>
-<button class="kbtn kspace" data-key="space"><div class="klabel"><span class="ken">Пробел</span></div></button>
-<button class="kbtn kmod" data-key="alt" id="kbAlt3"><div class="klabel"><span class="ken">Alt</span></div></button>
-<button class="kbtn kmod" data-key="ctrl" id="kbCtrl3"><div class="klabel"><span class="ken">Ctrl</span></div></button>
-<button class="kbtn-arrow" data-key="left">◀</button>
-<button class="kbtn-arrow" data-key="down">▼</button>
-<button class="kbtn-arrow" data-key="up">▲</button>
-<button class="kbtn-arrow" data-key="right">▶</button>
-</div>
-</div>
-</div>
-
-<script>
-(() => {
-const $ = s => document.getElementById(s);
-const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-let serverUrl = '', authenticated = false, streaming = false, cW = 0, cH = 0;
-let ruMode = false, shiftOn = false;
-const ruMap = {'q':'й','w':'ц','e':'у','r':'к','t':'е','y':'н','u':'г','i':'ш','o':'щ','p':'з','a':'ф','s':'ы','d':'в','f':'а','g':'п','h':'р','j':'о','k':'л','l':'д','z':'я','x':'ч','c':'с','v':'м','b':'и','n':'т','m':'ь','`':'ё','ё':'`'};
-const ruShiftMap = {'2':'"','3':'№','4':';','6':':','7':'?','\\':'/'};
-
-async function api(action, data = {}) {
-    data.action = action;
-    try {
-        const r = await fetch(serverUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        return await r.json();
-    } catch (e) { return { action: 'error', message: e.message }; }
-}
-
-function ml(t, k) { const e = $('loginMsg'); if (!e) return; e.textContent = t || ''; e.className = 'msg'; if (k) e.classList.add(k); }
-
-async function connect() {
-    const h = $('inpHost').value.trim(), p = $('inpPass').value.trim();
-    if (!h || !p) { ml('Заполните все поля', 'er'); return; }
-    serverUrl = h.replace(/\/$/, '') + '/api';
-    ml('Подключение...', '');
-    const r = await api('auth', { password: p });
-    if (r.action === 'auth_ok') {
-        authenticated = true;
-        $('loginScreen').classList.add('hidden');
-        $('app').classList.remove('hidden');
-        streaming = true;
-        screenLoop();
-        loadSysinfo();
-    } else {
-        ml('Неверный пароль', 'er');
-    }
-}
-
-const canvas = $('screenCanvas'), ctx = canvas ? canvas.getContext('2d') : null;
-
-function drawFrame(b64, w, h) {
-    if (!ctx) return;
-    const img = new Image();
-    img.onload = () => { canvas.width = w; canvas.height = h; cW = w; cH = h; ctx.drawImage(img, 0, 0); };
-    img.src = 'data:image/jpeg;base64,' + b64;
-}
-
-async function screenLoop() {
-    while (streaming && authenticated) {
-        try {
-            const r = await api('screenshot');
-            if (r.image) drawFrame(r.image, r.width, r.height);
-        } catch (e) { console.error('Screen error:', e); }
-        await new Promise(r => setTimeout(r, 100));
-    }
-}
-
-// Touch
-let touchDrag = false, touchStartX = 0, touchStartY = 0, touchStartTime = 0;
-let twoStartX = 0, twoStartY = 0;
-
-canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (e.touches.length === 2) {
-        twoStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        twoStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        return;
-    }
-    if (e.touches.length === 1) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        touchStartTime = Date.now();
-        touchDrag = true;
-        const r = canvas.getBoundingClientRect();
-        api('mouse_move', { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top, cw: cW, ch: cH });
-    }
-}, { passive: false });
-
-canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    if (e.touches.length === 2) {
-        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const dx = (cx - twoStartX) * 0.5;
-        const dy = (cy - twoStartY) * 0.5;
-        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
-            api('scroll', { dx: Math.round(dx), dy: Math.round(dy) });
-            twoStartX = cx; twoStartY = cy;
-        }
-        return;
-    }
-    if (e.touches.length === 1 && touchDrag) {
-        const dx = e.touches[0].clientX - touchStartX;
-        const dy = e.touches[0].clientY - touchStartY;
-        if (Math.abs(dy) > 15 || Math.abs(dx) > 15) {
-            touchDrag = false;
-            if (Math.abs(dy) > Math.abs(dx)) {
-                api('scroll', { dx: 0, dy: Math.round(dy * 0.3) });
-            }
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        } else {
-            const r = canvas.getBoundingClientRect();
-            api('mouse_move', { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top, cw: cW, ch: cH });
-        }
-    }
-}, { passive: false });
-
-canvas.addEventListener('touchend', e => {
-    e.preventDefault(); touchDrag = false;
-    const elapsed = Date.now() - touchStartTime;
-    if (elapsed < 200 && e.changedTouches && e.changedTouches.length) {
-        const t = e.changedTouches[0], r = canvas.getBoundingClientRect();
-        api('mouse_click', { x: t.clientX - r.left, y: t.clientY - r.top, cw: cW, ch: cH, button: 'left' });
-    }
-}, { passive: false });
-
-canvas.addEventListener('mousedown', e => { if (!authenticated) return; e.preventDefault(); const r = canvas.getBoundingClientRect(); api('mouse_click', { x: e.clientX - r.left, y: e.clientY - r.top, cw: cW, ch: cH, button: e.button === 2 ? 'right' : 'left' }); });
-canvas.addEventListener('wheel', e => { if (!authenticated) return; e.preventDefault(); api('scroll', { dx: e.deltaX > 0 ? 3 : e.deltaX < 0 ? -3 : 0, dy: e.deltaY > 0 ? 3 : e.deltaY < 0 ? -3 : 0 }); }, { passive: false });
-canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-// Keyboard — sticky modifiers
-let shiftOn = false, ruMode = false, capsOn = false;
-const heldModifiers = { ctrl: false, alt: false, shift: false };
-
-function updateModifierUI() {
-    ['kbCtrl1','kbCtrl2','kbCtrl3'].forEach(id => { const e = $(id); if(e) e.classList.toggle('active', heldModifiers.ctrl); });
-    ['kbAlt1','kbAlt2','kbAlt3'].forEach(id => { const e = $(id); if(e) e.classList.toggle('active', heldModifiers.alt); });
-    ['kbShift1','kbShift2','kbShift3'].forEach(id => { const e = $(id); if(e) e.classList.toggle('active', heldModifiers.shift); });
-}
-
-function releaseModifier(mod) {
-    if (heldModifiers[mod]) {
-        heldModifiers[mod] = false;
-        api('key', { key: mod, pressed: false });
-        updateModifierUI();
-    }
-}
-
-function toggleModifier(mod) {
-    if (heldModifiers[mod]) {
-        releaseModifier(mod);
-    } else {
-        heldModifiers[mod] = true;
-        api('key', { key: mod, pressed: true });
-        updateModifierUI();
-    }
-}
-
-function sendKey(key) {
-    if (key === 'ctrl') { toggleModifier('ctrl'); return; }
-    if (key === 'alt') { toggleModifier('alt'); return; }
-    if (key === 'shift') { toggleModifier('shift'); return; }
-    if (key === 'capslock') { capsOn = !capsOn; return; }
-    if (key === 'escape' || key === 'tab' || key === 'backspace' || key === 'enter' || key === 'delete') {
-        api('key_press', { key: key });
-        return;
-    }
-    let k = key;
-    if (ruMode && key.length === 1 && /[a-z]/i.test(k)) {
-        k = ruMap[key.toLowerCase()] || key;
-        if (heldModifiers.shift || capsOn) k = k.toUpperCase();
-    } else if (heldModifiers.shift && key.length === 1 && /[a-z]/i.test(k)) {
-        k = capsOn ? k.toLowerCase() : k.toUpperCase();
-    } else if (heldModifiers.shift) {
-        if (ruMode && ruShiftMap[key]) k = ruShiftMap[key];
-        else { const sm = {'`':'~','1':'!','2':'@','3':'#','4':'$','5':'%','6':'^','7':'&','8':'*','9':'(','0':')','-':'_','=':'+','[':'{',']':'}'}; if (sm[key]) k = sm[key]; }
-    }
-    api('key_press', { key: k });
-}
-
-document.querySelectorAll('.kbtn').forEach(btn => {
-    const key = btn.dataset.key; if (!key) return;
-    btn.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); btn.classList.add('pressed'); sendKey(key); }, { passive: false });
-    btn.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); btn.classList.remove('pressed'); }, { passive: false });
-    btn.addEventListener('touchcancel', () => btn.classList.remove('pressed'));
-    btn.addEventListener('click', e => { e.preventDefault(); sendKey(key); });
-});
-
-// Controls
-$('btnConnect').onclick = connect;
-$('btnDisconnect').onclick = () => { streaming = false; $('app').classList.add('hidden'); $('loginScreen').classList.remove('hidden'); };
-$('btnKeyboard').onclick = () => $('kbOverlay').classList.toggle('show');
-$('kbClose').onclick = () => $('kbOverlay').classList.remove('show');
-$('btnRu').onclick = () => { ruMode = !ruMode; $('btnRu').textContent = ruMode ? 'RU' : 'EN'; $('btnRu').classList.toggle('active', ruMode); };
-$('btnCtrlAltDel').onclick = () => {
-    api('key', { key: 'ctrl', pressed: true }); api('key', { key: 'alt', pressed: true });
-    setTimeout(() => { api('key_press', { key: 'delete' }); }, 50);
-    setTimeout(() => { api('key', { key: 'ctrl', pressed: false }); api('key', { key: 'alt', pressed: false }); }, 100);
-};
-$('btnHome').onclick = () => api('list_dir', { path: '/' });
-$('btnGo').onclick = () => api('list_dir', { path: $('filePath').value });
-$('btnRefresh').onclick = () => loadSysinfo();
-$('btnTermRun').onclick = async () => {
-    const c = $('termInput').value.trim(); if (!c || !authenticated) return;
-    $('termOutput').textContent += '$ ' + c + '\n';
-    const r = await api('run_cmd', { cmd: c });
-    if (r.stdout) $('termOutput').textContent += r.stdout;
-    if (r.stderr) $('termOutput').textContent += r.stderr;
-    if (r.error) $('termOutput').textContent += r.error;
-    $('termOutput').textContent += '\n';
-    $('termOutput').scrollTop = $('termOutput').scrollHeight;
-    $('termInput').value = '';
-};
-$('termInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnTermRun').click(); });
-
-async function loadSysinfo() {
-    const r = await api('sysinfo');
-    if (r.os) { $('infoOs').textContent = r.os + ' ' + (r.os_version || '').substring(0, 40); $('infoHost').textContent = r.hostname || '—'; $('infoScreen').textContent = (r.screen_width || '?') + 'x' + (r.screen_height || '?'); }
-    if (r.cpu_percent != null) { $('infoCpu').textContent = r.cpu_percent + '%'; $('barCpu').style.width = r.cpu_percent + '%'; $('barCpu').style.background = r.cpu_percent > 80 ? '#ff3d00' : '#0088cc'; }
-    if (r.ram_percent != null) { $('infoRam').textContent = r.ram_used_gb + '/' + r.ram_total_gb + ' GB'; $('barRam').style.width = r.ram_percent + '%'; $('barRam').style.background = r.ram_percent > 80 ? '#ff3d00' : '#0088cc'; }
-    if (r.disk_percent != null) { $('infoDisk').textContent = r.disk_used_gb + '/' + r.disk_total_gb + ' GB'; $('barDisk').style.width = r.disk_percent + '%'; }
-}
-
-// Tabs
-document.querySelectorAll('.bbtn[data-tab]').forEach(b => {
-    b.onclick = () => {
-        document.querySelectorAll('.bbtn[data-tab]').forEach(x => x.classList.remove('act'));
-        document.querySelectorAll('.panel').forEach(x => x.classList.remove('act'));
-        document.querySelector('.screen-view').classList.remove('act');
-        b.classList.add('act');
-        const t = b.dataset.tab;
-        if (t === 'screen') { document.querySelector('.screen-view').classList.add('act'); return; }
-        const p = $('panel' + t[0].toUpperCase() + t.slice(1));
-        if (p) p.classList.add('act');
-    };
-});
-document.querySelectorAll('.pback').forEach(b => {
-    b.onclick = () => {
-        document.querySelectorAll('.panel').forEach(x => x.classList.remove('act'));
-        document.querySelector('.screen-view').classList.add('act');
-        document.querySelectorAll('.bbtn[data-tab]').forEach(x => x.classList.remove('act'));
-        document.querySelector('.bbtn[data-tab="screen"]').classList.add('act');
-    };
-});
-
-function renderFiles(items) {
-    const el = $('fileList'); el.innerHTML = '';
-    items.forEach(item => {
-        const row = document.createElement('div'); row.className = 'file-item';
-        row.innerHTML = '<i class="fa-solid ' + (item.is_dir ? 'fa-folder' : 'fa-file') + '"></i><span class="file-name">' + esc(item.name) + '</span><span class="file-size">' + fmtSize(item.size) + '</span>';
-        row.onclick = () => { if (item.is_dir) api('list_dir', { path: item.path }); };
-        el.appendChild(row);
-    });
-}
-function fmtSize(b) { if (!b) return ''; if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; return (b / 1048576).toFixed(1) + ' MB'; }
-
-$('inpPass').addEventListener('keydown', e => { if (e.key === 'Enter') connect(); });
-})();
-</script>
+<script src="script.js"></script>
 </body>
 </html>
