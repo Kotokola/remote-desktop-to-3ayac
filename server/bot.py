@@ -24,6 +24,17 @@ if not BOT_TOKEN or ":" not in BOT_TOKEN:
     print("ERROR: BOT_TOKEN not set. Set env BOT_TOKEN or create bot_token.txt")
     sys.exit(1)
 
+# Proxy for Bot API (HTTP/SOCKS, NOT MTProxy secret)
+# set env PROXY_URL or create proxy.txt with e.g. http://127.0.0.1:1080 or socks5://...
+PROXY_URL = os.getenv("PROXY_URL", "")
+if not PROXY_URL and Path("proxy.txt").exists():
+    try: PROXY_URL = Path("proxy.txt").read_text().strip().split()[0]
+    except: pass
+if PROXY_URL:
+    print(f"[BOT] Proxy: {PROXY_URL}")
+else:
+    print("[BOT] No proxy (if Telegram blocked, set PROXY_URL or proxy.txt)")
+
 print(f"[BOT] Token ...{BOT_TOKEN[-6:]}  Allowed: {ALLOWED_USER}")
 
 try:
@@ -387,21 +398,34 @@ async def error_handler(update, ctx):
     print(f"error: {ctx.error}")
 
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("screen", screen_cmd))
-    app.add_handler(CommandHandler("sysinfo", sysinfo_cmd))
-    app.add_handler(CommandHandler("files", files_cmd))
-    app.add_handler(CommandHandler("exec", exec_cmd))
-    app.add_handler(CommandHandler("cmd", cmd_winr))
-    app.add_handler(CommandHandler("opencode", opencode_cmd))
-    app.add_handler(CommandHandler("server", server_cmd))
-    app.add_handler(CallbackQueryHandler(on_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
-    app.add_error_handler(error_handler)
-    print(f"[BOT] Starting for {ALLOWED_USER}...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    import asyncio
+    while True:
+        try:
+            builder = Application.builder().token(BOT_TOKEN)
+            if PROXY_URL:
+                from telegram.request import HTTPXRequest
+                builder = builder.request(HTTPXRequest(proxy_url=PROXY_URL))
+            app = builder.build()
+            app.add_handler(CommandHandler("start", start))
+            app.add_handler(CommandHandler("help", help_cmd))
+            app.add_handler(CommandHandler("screen", screen_cmd))
+            app.add_handler(CommandHandler("sysinfo", sysinfo_cmd))
+            app.add_handler(CommandHandler("files", files_cmd))
+            app.add_handler(CommandHandler("exec", exec_cmd))
+            app.add_handler(CommandHandler("cmd", cmd_winr))
+            app.add_handler(CommandHandler("opencode", opencode_cmd))
+            app.add_handler(CommandHandler("server", server_cmd))
+            app.add_handler(CallbackQueryHandler(on_callback))
+            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
+            app.add_error_handler(error_handler)
+            print(f"[BOT] Starting for {ALLOWED_USER}... (retry forever)")
+            app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True, close_loop=False, bootstrap_retries=-1)
+        except Exception as e:
+            print(f"[BOT] Crash: {e} — retry in 10s")
+            time.sleep(10)
+        else:
+            print("[BOT] Stopped — retry in 10s")
+            time.sleep(10)
 
 if __name__ == "__main__":
     main()
