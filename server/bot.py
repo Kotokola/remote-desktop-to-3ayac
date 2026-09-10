@@ -404,7 +404,7 @@ def main():
             builder = Application.builder().token(BOT_TOKEN)
             if PROXY_URL:
                 from telegram.request import HTTPXRequest
-                builder = builder.request(HTTPXRequest(proxy_url=PROXY_URL))
+                builder = builder.request(HTTPXRequest(proxy=PROXY_URL))
             app = builder.build()
             app.add_handler(CommandHandler("start", start))
             app.add_handler(CommandHandler("help", help_cmd))
