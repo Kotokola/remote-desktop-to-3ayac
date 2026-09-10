@@ -58,10 +58,86 @@ awaiting_cmd = set()  # user_ids waiting for cmd text after WIN+R
 awaiting_exec = set()
 server_process = None
 
+# Persistent terminal sessions: {user_id: {sess_id: {"proc": Popen, "title": str, "cwd": str}}}
+term_sessions = {}
+TERM_MAX = 5
+
+def get_term(user_id, sess_id="default"):
+    if user_id not in term_sessions: term_sessions[user_id] = {}
+    if sess_id not in term_sessions[user_id]:
+        # create hidden persistent powershell
+        try:
+            proc = subprocess.Popen(
+                ["powershell.exe", "-NoLogo", "-NoExit", "-Command", "-"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, cwd=str(Path.home()),
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
+            )
+            term_sessions[user_id][sess_id] = {"proc": proc, "title": sess_id, "cwd": str(Path.home())}
+        except Exception as e:
+            # fallback to cmd
+            proc = subprocess.Popen(
+                ["cmd.exe"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, cwd=str(Path.home()),
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
+            )
+            term_sessions[user_id][sess_id] = {"proc": proc, "title": sess_id, "cwd": str(Path.home())}
+    return term_sessions[user_id][sess_id]
+
+def exec_persistent(cmd, user_id, sess_id="default", timeout=15):
+    sess = get_term(user_id, sess_id)
+    proc = sess["proc"]
+    if proc.poll() is not None: # dead, recreate
+        term_sessions[user_id].pop(sess_id, None)
+        sess = get_term(user_id, sess_id)
+        proc = sess["proc"]
+    marker = f"__END_{time.time()}__"
+    try:
+        proc.stdin.write(cmd + f"\necho {marker}\n")
+        proc.stdin.flush()
+        out = ""
+        start = time.time()
+        while time.time() - start < timeout:
+            line = proc.stdout.readline()
+            if not line: time.sleep(0.05); continue
+            if marker in line: break
+            out += line
+            if len(out) > 6000: break
+        return out.strip() or f"(no output, marker {marker})"
+    except Exception as e:
+        return f"exec error: {e}"
+
+def list_windows():
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        EnumWindows = user32.EnumWindows
+        GetWindowTextW = user32.GetWindowTextW
+        GetWindowTextLengthW = user32.GetWindowTextLengthW
+        IsWindowVisible = user32.IsWindowVisible
+        windows = []
+        @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+        def callback(hwnd, lParam):
+            if IsWindowVisible(hwnd):
+                length = GetWindowTextLengthW(hwnd)
+                if length:
+                    buff = ctypes.create_unicode_buffer(length+1)
+                    GetWindowTextW(hwnd, buff, length+1)
+                    title = buff.value
+                    if title.strip():
+                        windows.append((hwnd, title[:60]))
+            return True
+        EnumWindows(callback, 0)
+        return windows[:30]
+    except Exception as e:
+        return []
+
 def is_allowed(uid): return uid == ALLOWED_USER
 
 async def deny(update: Update):
-    try: await update.message.reply_text("⛔ ACCESS DENIED. Ваш ID: "+str(update.effective_user.id))
+    try:
+        m = update.effective_message
+        if m: await m.reply_text("⛔ ACCESS DENIED. Ваш ID: "+str(update.effective_user.id))
     except: pass
 
 def opencode_path():
@@ -195,24 +271,34 @@ async def exec_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return await deny(update)
     cmd = " ".join(ctx.args) if ctx.args else ""
     if not cmd:
-        awaiting_exec.add(update.effective_user.id)
-        await update.message.reply_text("💻 Введи команду для выполнения (следующее сообщение будет выполнено):")
+        # show window manager
+        uid = update.effective_user.id
+        sess = term_sessions.get(uid, {})
+        wins = list_windows()
+        kb = []
+        for sid in list(sess.keys())[:5]:
+            kb.append([InlineKeyboardButton(f"💻 {sid} ({'alive' if sess[sid]['proc'].poll() is None else 'dead'})", callback_data=f"term:use:{sid}")])
+        kb.append([InlineKeyboardButton("➕ New term", callback_data="term:new"), InlineKeyboardButton("📋 List wins", callback_data="term:wins")])
+        kb.append([InlineKeyboardButton("❌ Close term", callback_data="term:close"), InlineKeyboardButton("🔄 Kill all", callback_data="term:killall")])
+        await update.message.reply_text("💻 *Terminal* — введи `/exec <cmd>` или выбери окно:\n`Без нового окна!` — выполняется в скрытом персистентном shell (грязь, но не моргает).\nСледующее сообщение без `/` выполнится в текущем терминале.", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+        awaiting_exec.add(uid)
         return
-    await update.message.reply_text(f"⏳ Exec: `{cmd}`", parse_mode="Markdown")
+    # use persistent shell, no new window
+    await update.message.reply_text(f"⏳ Exec (no new window): `{cmd}`", parse_mode="Markdown")
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()))
-        out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
-        if not out: out = f"(exit {r.returncode})"
-        out = out[-3800:]
-        await update.message.reply_text(f"```\n{out}\n```\nExit: {r.returncode}", parse_mode="Markdown")
+        out = exec_persistent(cmd, update.effective_user.id)
+        out = out[-3800:] or "(no output)"
+        await update.message.reply_text(f"```\n{out}\n```", parse_mode="Markdown")
     except Exception as e: await update.message.reply_text(f"❌ {e}")
 
 async def cmd_winr(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return await deny(update)
     if not pyautogui:
-        await update.message.reply_text("❌ pyautogui not installed")
+        msg = update.effective_message
+        if msg: await msg.reply_text("❌ pyautogui not installed")
         return
-    await update.message.reply_text("⌨️ Нажимаю WIN+R → ввод `cmd` → Enter...\nЗатем введи команду в чат — она выполнится и вернётся.")
+    msg = update.effective_message
+    if msg: await msg.reply_text("⌨️ Нажимаю WIN+R → ввод `cmd` → Enter...\nЗатем введи команду в чат — она выполнится и вернётся.")
     try:
         pyautogui.hotkey('win', 'r', _pause=False)
         time.sleep(0.5)
@@ -220,8 +306,9 @@ async def cmd_winr(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pyautogui.press('enter', _pause=False)
         time.sleep(0.8)
         awaiting_cmd.add(update.effective_user.id)
-        await update.message.reply_text("✅ CMD открыт. Введи команду (например `dir` / `ipconfig`):")
-    except Exception as e: await update.message.reply_text(f"❌ {e}")
+        if msg: await msg.reply_text("✅ CMD открыт. Введи команду (например `dir` / `ipconfig`):")
+    except Exception as e:
+        if msg: await msg.reply_text(f"❌ {e}")
 
 async def opencode_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return await deny(update)
@@ -332,9 +419,51 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     pyautogui.hotkey('alt','tab'); await q.message.reply_text("🖥 Попытка вернуть фокус OpenCode")
                 else: await q.message.reply_text("❌ pyautogui needed")
             else: await q.message.reply_text(f"op:{act} — в разработке")
+        elif data.startswith("term:"):
+            sub = data[5:]
+            uid = update.effective_user.id
+            if sub == "new":
+                sid = f"term{len(term_sessions.get(uid, {}))+1}"
+                get_term(uid, sid)
+                await q.message.reply_text(f"➕ Создан {sid}")
+            elif sub == "wins":
+                wins = list_windows()
+                if not wins: await q.message.reply_text("Нет окон")
+                else:
+                    txt = "🪟 *Windows:*\n" + "\n".join([f"`{hwnd}` {t}" for hwnd,t in wins[:15]])
+                    kb2 = [[InlineKeyboardButton(f"🔝 {t[:20]}", callback_data=f"win:front:{hwnd}"), InlineKeyboardButton(f"❌ {hwnd}", callback_data=f"win:close:{hwnd}")] for hwnd,t in wins[:8]]
+                    await q.message.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb2) if kb2 else None)
+            elif sub == "close":
+                if uid in term_sessions and term_sessions[uid]:
+                    sid = list(term_sessions[uid].keys())[-1]
+                    try: term_sessions[uid][sid]["proc"].terminate()
+                    except: pass
+                    term_sessions[uid].pop(sid, None)
+                    await q.message.reply_text(f"🗑 Closed {sid}")
+                else: await q.message.reply_text("Нет терминалов")
+            elif sub == "killall":
+                for sid in list(term_sessions.get(uid, {}).keys()):
+                    try: term_sessions[uid][sid]["proc"].kill()
+                    except: pass
+                term_sessions[uid] = {}
+                await q.message.reply_text("💀 All killed")
+            elif sub.startswith("use:"):
+                sid = sub[4:]
+                await q.message.reply_text(f"💻 Активен {sid} — следующие `/exec` пойдут туда. Введи команду.")
+                awaiting_exec.add(uid)
+        elif data.startswith("win:"):
+            _, act, hwnd = data.split(":",2)
+            try:
+                import ctypes
+                hwnd = int(hwnd)
+                if act == "front":
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    await q.message.reply_text(f"🔝 Front {hwnd}")
+                elif act == "close":
+                    ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
+                    await q.message.reply_text(f"❌ Close sent {hwnd}")
+            except Exception as e: await q.message.reply_text(f"❌ {e}")
         elif data.startswith("opchoose:"):
-            await q.message.reply_text(f"📂 Открываю {data[9:][:40]} — запусти OpenCode и выбери workspace вручную (путь скопирован).")
-        elif data.startswith("srv:"):
             act = data[4:]
             if act == "start":
                 subprocess.Popen([sys.executable, "server_nocors.py"], cwd=str(Path(__file__).parent))
@@ -371,28 +500,27 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         awaiting_cmd.discard(uid)
         await update.message.reply_text(f"⏳ Executing in CMD: `{txt}`", parse_mode="Markdown")
         try:
-            r = subprocess.run(txt, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()))
+            r = subprocess.run(txt, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
             out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
             if not out: out = f"(exit {r.returncode})"
             out = out[-3800:]
             await update.message.reply_text(f"```\n{out}\n```\nExit: {r.returncode}", parse_mode="Markdown")
-            # alsotype into cmd window via clipboard? optional
-            # try: pyautogui.write(txt); pyautogui.press('enter')
-            # except: pass
         except Exception as e: await update.message.reply_text(f"❌ {e}")
         return
     if uid in awaiting_exec:
         awaiting_exec.discard(uid)
-        await update.message.reply_text(f"⏳ Exec: `{txt}`", parse_mode="Markdown")
+        await update.message.reply_text(f"⏳ Exec (persistent, no new window): `{txt}`", parse_mode="Markdown")
         try:
-            r = subprocess.run(txt, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()))
-            out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
-            if not out: out = f"(exit {r.returncode})"
+            out = exec_persistent(txt, uid)
             await update.message.reply_text(f"```\n{out[-3800:]}\n```", parse_mode="Markdown")
         except Exception as e: await update.message.reply_text(f"❌ {e}")
         return
     # if starts with / skip (handled elsewhere)
     if txt.startswith("/"): return
+    # auto exec if user just types command without /exec (when they have active term)
+    if uid in term_sessions and term_sessions[uid]:
+        # optional: treat any text as command if they are in terminal mode
+        pass
 
 async def error_handler(update, ctx):
     print(f"error: {ctx.error}")
