@@ -1,0 +1,407 @@
+"""
+Telegram Remote Control Bot - Cyberpunk Edition
+Only for user 8580891668. Controls PC via Telegram.
+Features: screen, sysinfo, files, terminal, WIN+R cmd, server control, OpenCode control
+"""
+import os, sys, json, subprocess, platform, time, base64, io, re
+from pathlib import Path
+from datetime import datetime
+
+# ---- Config ----
+ALLOWED_USER = 8580891668
+PASSWORD = "admin123" # for reference
+
+# Token priority: env BOT_TOKEN > bot_token.txt > placeholder
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+if not BOT_TOKEN and Path("bot_token.txt").exists():
+    try: BOT_TOKEN = Path("bot_token.txt").read_text().strip().split()[0]
+    except: pass
+# fallback for local dev (do NOT commit real token to GitHub)
+if not BOT_TOKEN:
+    BOT_TOKEN = "PUT_YOUR_TOKEN_HERE"
+
+if not BOT_TOKEN or ":" not in BOT_TOKEN:
+    print("ERROR: BOT_TOKEN not set. Set env BOT_TOKEN or create bot_token.txt")
+    sys.exit(1)
+
+print(f"[BOT] Token ...{BOT_TOKEN[-6:]}  Allowed: {ALLOWED_USER}")
+
+try:
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+except ImportError:
+    print("pip install python-telegram-bot --upgrade")
+    sys.exit(1)
+
+try: import mss
+except: mss=None
+try: import pyautogui; pyautogui.FAILSAFE=False
+except: pyautogui=None
+try: from PIL import Image
+except: Image=None
+try: import psutil
+except: psutil=None
+
+# ---- State ----
+awaiting_cmd = set()  # user_ids waiting for cmd text after WIN+R
+awaiting_exec = set()
+server_process = None
+
+def is_allowed(uid): return uid == ALLOWED_USER
+
+async def deny(update: Update):
+    try: await update.message.reply_text("⛔ ACCESS DENIED. Ваш ID: "+str(update.effective_user.id))
+    except: pass
+
+def opencode_path():
+    for p in [
+        Path(os.getenv("LOCALAPPDATA", "")) / "Programs" / "@opencode-aidesktop" / "OpenCode.exe",
+        Path("C:/Users/GUEST/AppData/Local/Programs/@opencode-aidesktop/OpenCode.exe"),
+        Path("C:/Users/zedre/AppData/Local/Programs/@opencode-aidesktop/OpenCode.exe"),
+        Path.home() / "AppData" / "Local" / "Programs" / "@opencode-aidesktop" / "OpenCode.exe",
+    ]:
+        if p.exists(): return str(p)
+    return None
+
+def get_opencode_workspaces():
+    # parse workspaces from Roaming
+    ws = []
+    for base in [Path(os.getenv("APPDATA","")) / "ai.opencode.desktop", Path.home() / "AppData" / "Roaming" / "ai.opencode.desktop"]:
+        if not base.exists(): continue
+        for f in base.glob("opencode.workspace.*.dat"):
+            try:
+                name = f.name.replace("opencode.workspace.","").replace(".dat","")
+                # try to decode - it's binary, just show name
+                ws.append({"file": str(f), "name": name[:40], "mtime": f.stat().st_mtime})
+            except: pass
+    ws = sorted(ws, key=lambda x: x["mtime"], reverse=True)[:10]
+    return ws
+
+def capture_screen_bytes():
+    if not mss or not Image: return None, "mss/Pillow not installed"
+    try:
+        with mss.mss() as sct:
+            mon = sct.monitors[1]
+            shot = sct.grab(mon)
+            img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+            img = img.resize((int(img.width*0.6), int(img.height*0.6)), Image.Resampling.LANCZOS)
+            buf = io.BytesIO(); img.save(buf, format="JPEG", quality=65)
+            return buf.getvalue(), None
+    except Exception as e: return None, str(e)
+
+def sysinfo_text():
+    try:
+        cpu = psutil.cpu_percent(interval=0.5) if psutil else "?"
+        mem = psutil.virtual_memory() if psutil else None
+        disk = psutil.disk_usage("/") if psutil else None
+        sw, sh = pyautogui.size() if pyautogui else ("?","?")
+        txt = f"🖥 *SYSINFO*\nOS: {platform.system()} {platform.version()[:40]}\nHost: {platform.node()}\nScreen: {sw}x{sh}\n"
+        if mem: txt += f"CPU: {cpu}%\nRAM: {mem.percent}% {round(mem.used/1024**3,1)}/{round(mem.total/1024**3,1)} GB\n"
+        if disk: txt += f"Disk: {disk.percent}% {round(disk.used/1024**3,1)}/{round(disk.total/1024**3,1)} GB\n"
+        txt += f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return txt
+    except Exception as e: return f"sysinfo error: {e}"
+
+def list_dir_text(path):
+    try:
+        p = Path(path).expanduser().resolve()
+        if not p.exists(): return f"❌ Path not found: {path}", []
+        if not p.is_dir(): return f"❌ Not a dir: {p}", []
+        items = sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+        lines = [f"📁 `{p}`\n"]
+        kb = []
+        for it in items[:30]:
+            icon = "📁" if it.is_dir() else "📄"
+            lines.append(f"{icon} {it.name} {'('+str(it.stat().st_size)+'b)' if not it.is_dir() else ''}")
+            # button for navigation (limit)
+            if it.is_dir():
+                kb.append([InlineKeyboardButton(f"📁 {it.name[:30]}", callback_data=f"files:{it}")])
+            else:
+                kb.append([InlineKeyboardButton(f"📄 {it.name[:30]}", callback_data=f"read:{it}")])
+        # parent
+        if p.parent != p:
+            kb.append([InlineKeyboardButton("⬆️ Parent", callback_data=f"files:{p.parent}")])
+        kb.append([InlineKeyboardButton("🏠 Home", callback_data="files:C:/"), InlineKeyboardButton("📍 Cwd", callback_data=f"files:{Path.cwd()}")])
+        return "\n".join(lines), kb
+    except Exception as e: return f"error: {e}", []
+
+# ---- Handlers ----
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    kb = [
+        [InlineKeyboardButton("🖥 Screen", callback_data="do:screen"), InlineKeyboardButton("📊 SysInfo", callback_data="do:sysinfo")],
+        [InlineKeyboardButton("📁 Files", callback_data="do:files"), InlineKeyboardButton("💻 Terminal", callback_data="do:terminal")],
+        [InlineKeyboardButton("⌨️ WIN+R → CMD", callback_data="do:cmd"), InlineKeyboardButton("🤖 OpenCode", callback_data="do:opencode")],
+        [InlineKeyboardButton("🔄 Server", callback_data="do:server"), InlineKeyboardButton("❓ Help", callback_data="do:help")],
+    ]
+    await update.message.reply_text(
+        "🌆 *NEON DESK // CYBER CONTROL*\n\n"
+        "Доступ: только для `8580891668`\n"
+        "Команды: /screen /sysinfo /files /exec <cmd> /cmd /opencode /server\n"
+        "Нажми кнопку или введи команду.",
+        parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb)
+    )
+
+async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    await update.message.reply_text(
+        "📖 *HELP*\n"
+        "/start — меню\n"
+        "/screen — скрин экрана\n"
+        "/sysinfo — CPU/RAM/Disk\n"
+        "/files [path] — файлы (инлайн навигация)\n"
+        "/exec <cmd> — выполнить команду (вывод до 4000 симв)\n"
+        "/cmd — WIN+R → cmd → ждёт твою команду в чате → выполняет\n"
+        "/opencode — управление OpenCode.exe\n"
+        "/server — restart/status сервера (server_nocors.py)\n"
+        "/kill <pid> — убить процесс\n"
+        "Также кнопки в меню.",
+        parse_mode="Markdown"
+    )
+
+async def screen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    msg = await update.message.reply_text("📸 Capturing...")
+    data, err = capture_screen_bytes()
+    if err: await msg.edit_text(f"❌ {err}")
+    else:
+        await msg.delete()
+        await update.message.reply_photo(photo=data, caption=f"🖥 Screen {datetime.now().strftime('%H:%M:%S')}")
+
+async def sysinfo_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    await update.message.reply_text(sysinfo_text(), parse_mode="Markdown")
+
+async def files_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    path = " ".join(ctx.args) if ctx.args else str(Path.home())
+    txt, kb = list_dir_text(path)
+    # telegram limit 4096
+    if len(txt) > 4000: txt = txt[:4000]
+    await update.message.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
+
+async def exec_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    cmd = " ".join(ctx.args) if ctx.args else ""
+    if not cmd:
+        awaiting_exec.add(update.effective_user.id)
+        await update.message.reply_text("💻 Введи команду для выполнения (следующее сообщение будет выполнено):")
+        return
+    await update.message.reply_text(f"⏳ Exec: `{cmd}`", parse_mode="Markdown")
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()))
+        out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
+        if not out: out = f"(exit {r.returncode})"
+        out = out[-3800:]
+        await update.message.reply_text(f"```\n{out}\n```\nExit: {r.returncode}", parse_mode="Markdown")
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
+
+async def cmd_winr(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    if not pyautogui:
+        await update.message.reply_text("❌ pyautogui not installed")
+        return
+    await update.message.reply_text("⌨️ Нажимаю WIN+R → ввод `cmd` → Enter...\nЗатем введи команду в чат — она выполнится и вернётся.")
+    try:
+        pyautogui.hotkey('win', 'r', _pause=False)
+        time.sleep(0.5)
+        pyautogui.write('cmd', interval=0.05)
+        pyautogui.press('enter', _pause=False)
+        time.sleep(0.8)
+        awaiting_cmd.add(update.effective_user.id)
+        await update.message.reply_text("✅ CMD открыт. Введи команду (например `dir` / `ipconfig`):")
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
+
+async def opencode_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    path = opencode_path()
+    procs = []
+    if psutil:
+        for p in psutil.process_iter(['pid','name']):
+            try:
+                if 'opencode' in p.info['name'].lower(): procs.append(p.info)
+            except: pass
+    kb = [
+        [InlineKeyboardButton("▶️ Launch OpenCode", callback_data="op:launch"), InlineKeyboardButton("❌ Kill All", callback_data="op:killall")],
+        [InlineKeyboardButton("📋 List PIDs", callback_data="op:list"), InlineKeyboardButton("🔄 Restart", callback_data="op:restart")],
+        [InlineKeyboardButton("💬 Continue same chat", callback_data="op:continue"), InlineKeyboardButton("📂 Choose chat", callback_data="op:choose")],
+        [InlineKeyboardButton("➕ New chat", callback_data="op:new"), InlineKeyboardButton("🗑 Close chat", callback_data="op:close")],
+        [InlineKeyboardButton("🖥 Bring to front", callback_data="op:front")],
+    ]
+    txt = f"🤖 *OpenCode*\nPath: `{path or 'not found'}`\nRunning: {len(procs)} process(es)\n"
+    for p in procs[:5]: txt += f" • PID {p['pid']} {p['name']}\n"
+    ws = get_opencode_workspaces()
+    if ws:
+        txt += "\n*Recent workspaces:*\n"
+        for w in ws[:5]: txt += f" • `{w['name']}`\n"
+    txt += "\nВыбери действие:"
+    await update.message.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+
+async def server_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    kb = [
+        [InlineKeyboardButton("▶️ Start server_nocors", callback_data="srv:start"), InlineKeyboardButton("🔄 Restart", callback_data="srv:restart")],
+        [InlineKeyboardButton("⏹ Stop", callback_data="srv:stop"), InlineKeyboardButton("📊 Status", callback_data="srv:status")],
+        [InlineKeyboardButton("📜 Logs", callback_data="srv:logs")],
+    ]
+    # status
+    status = "unknown"
+    if psutil:
+        for p in psutil.process_iter(['pid','name','cmdline']):
+            try:
+                cl = " ".join(p.info['cmdline'] or [])
+                if "server_nocors" in cl or "server_http" in cl or "server.py" in cl: status = f"running PID {p.info['pid']} {cl[:60]}"
+            except: pass
+        if status=="unknown": status="not running"
+    await update.message.reply_text(f"🔄 *Server*\nStatus: `{status}`\nPort 8765\nPassword: `{PASSWORD}`\n\nУправление:", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+
+async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await update.callback_query.answer("DENIED", show_alert=True)
+    q = update.callback_query; await q.answer()
+    data = q.data
+    try:
+        if data == "do:screen":
+            d, e = capture_screen_bytes()
+            if e: await q.message.reply_text(f"❌ {e}")
+            else: await q.message.reply_photo(photo=d, caption="🖥 Screen")
+        elif data == "do:sysinfo": await q.message.reply_text(sysinfo_text(), parse_mode="Markdown")
+        elif data == "do:files":
+            txt, kb = list_dir_text(str(Path.home())); await q.message.reply_text(txt[:4000], parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
+        elif data == "do:terminal": await q.message.reply_text("💻 Введи /exec <команда> или нажми: /exec")
+        elif data == "do:cmd": await cmd_winr(update, ctx)
+        elif data == "do:opencode": await opencode_cmd(update, ctx)
+        elif data == "do:server": await server_cmd(update, ctx)
+        elif data == "do:help": await help_cmd(update, ctx)
+        elif data.startswith("files:"):
+            path = data[6:]; txt, kb = list_dir_text(path); await q.message.reply_text(txt[:4000], parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
+        elif data.startswith("read:"):
+            path = data[5:]
+            try:
+                p = Path(path); txt = p.read_text(encoding="utf-8", errors="replace")[:3500]
+                await q.message.reply_text(f"📄 `{p.name}`\n```\n{txt}\n```", parse_mode="Markdown")
+            except Exception as e: await q.message.reply_text(f"❌ {e}")
+        elif data.startswith("op:"):
+            act = data[3:]
+            path = opencode_path()
+            if act == "launch":
+                if path: subprocess.Popen([path]); await q.message.reply_text("▶️ Launching OpenCode...")
+                else: await q.message.reply_text("❌ OpenCode.exe not found")
+            elif act == "killall":
+                killed=0
+                if psutil:
+                    for p in psutil.process_iter(['pid','name']):
+                        if 'opencode' in p.info['name'].lower():
+                            try: psutil.Process(p.info['pid']).kill(); killed+=1
+                            except: pass
+                await q.message.reply_text(f"❌ Killed {killed}")
+            elif act == "list":
+                procs = [p.info for p in psutil.process_iter(['pid','name']) if 'opencode' in p.info['name'].lower()] if psutil else []
+                await q.message.reply_text("PIDs:\n" + "\n".join([f"{p['pid']} {p['name']}" for p in procs]) or "none")
+            elif act == "restart":
+                if psutil:
+                    for p in psutil.process_iter(['pid','name']):
+                        if 'opencode' in p.info['name'].lower():
+                            try: psutil.Process(p.info['pid']).kill()
+                            except: pass
+                    time.sleep(1)
+                if path: subprocess.Popen([path]); await q.message.reply_text("🔄 Restarted")
+            elif act == "continue": await q.message.reply_text("💬 Продолжаю в том же чате — просто пиши сообщение в OpenCode (окно уже открыто).")
+            elif act == "choose":
+                ws = get_opencode_workspaces()
+                if not ws: await q.message.reply_text("Нет сохранённых чатов")
+                else:
+                    kb2 = [[InlineKeyboardButton(w['name'][:30], callback_data=f"opchoose:{w['file']}")] for w in ws[:8]]
+                    await q.message.reply_text("📂 Выбери чат:", reply_markup=InlineKeyboardMarkup(kb2))
+            elif act == "new": 
+                if path: subprocess.Popen([path, "--new-window"]); await q.message.reply_text("➕ New chat window opened")
+            elif act == "close": await q.message.reply_text("🗑 Чтобы закрыть чат в OpenCode: Ctrl+W или кнопка закрытия окна. Команда отправлена: Alt+F4")
+            elif act == "front":
+                if pyautogui:
+                    # try to bring to front via Alt+Tab simulation
+                    pyautogui.hotkey('alt','tab'); await q.message.reply_text("🖥 Попытка вернуть фокус OpenCode")
+                else: await q.message.reply_text("❌ pyautogui needed")
+            else: await q.message.reply_text(f"op:{act} — в разработке")
+        elif data.startswith("opchoose:"):
+            await q.message.reply_text(f"📂 Открываю {data[9:][:40]} — запусти OpenCode и выбери workspace вручную (путь скопирован).")
+        elif data.startswith("srv:"):
+            act = data[4:]
+            if act == "start":
+                subprocess.Popen([sys.executable, "server_nocors.py"], cwd=str(Path(__file__).parent))
+                await q.message.reply_text("▶️ server_nocors.py started")
+            elif act == "restart":
+                if psutil:
+                    for p in psutil.process_iter(['pid','name','cmdline']):
+                        try:
+                            cl=" ".join(p.info['cmdline'] or [])
+                            if "server_nocors" in cl: psutil.Process(p.info['pid']).kill()
+                        except: pass
+                    time.sleep(1)
+                subprocess.Popen([sys.executable, "server_nocors.py"], cwd=str(Path(__file__).parent))
+                await q.message.reply_text("🔄 Restarted")
+            elif act == "stop":
+                killed=0
+                if psutil:
+                    for p in psutil.process_iter(['pid','name','cmdline']):
+                        try:
+                            cl=" ".join(p.info['cmdline'] or [])
+                            if "server_nocors" in cl: psutil.Process(p.info['pid']).kill(); killed+=1
+                        except: pass
+                await q.message.reply_text(f"⏹ Stopped {killed}")
+            elif act == "status": await server_cmd(update, ctx)
+            elif act == "logs": await q.message.reply_text("📜 Логи смотри в консоли где запущен python server_nocors.py")
+        else: await q.message.reply_text(f"Unknown: {data}")
+    except Exception as e: await q.message.reply_text(f"❌ {e}")
+
+async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return
+    uid = update.effective_user.id
+    txt = update.message.text or ""
+    if uid in awaiting_cmd:
+        awaiting_cmd.discard(uid)
+        await update.message.reply_text(f"⏳ Executing in CMD: `{txt}`", parse_mode="Markdown")
+        try:
+            r = subprocess.run(txt, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()))
+            out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
+            if not out: out = f"(exit {r.returncode})"
+            out = out[-3800:]
+            await update.message.reply_text(f"```\n{out}\n```\nExit: {r.returncode}", parse_mode="Markdown")
+            # alsotype into cmd window via clipboard? optional
+            # try: pyautogui.write(txt); pyautogui.press('enter')
+            # except: pass
+        except Exception as e: await update.message.reply_text(f"❌ {e}")
+        return
+    if uid in awaiting_exec:
+        awaiting_exec.discard(uid)
+        await update.message.reply_text(f"⏳ Exec: `{txt}`", parse_mode="Markdown")
+        try:
+            r = subprocess.run(txt, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()))
+            out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
+            if not out: out = f"(exit {r.returncode})"
+            await update.message.reply_text(f"```\n{out[-3800:]}\n```", parse_mode="Markdown")
+        except Exception as e: await update.message.reply_text(f"❌ {e}")
+        return
+    # if starts with / skip (handled elsewhere)
+    if txt.startswith("/"): return
+
+async def error_handler(update, ctx):
+    print(f"error: {ctx.error}")
+
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("screen", screen_cmd))
+    app.add_handler(CommandHandler("sysinfo", sysinfo_cmd))
+    app.add_handler(CommandHandler("files", files_cmd))
+    app.add_handler(CommandHandler("exec", exec_cmd))
+    app.add_handler(CommandHandler("cmd", cmd_winr))
+    app.add_handler(CommandHandler("opencode", opencode_cmd))
+    app.add_handler(CommandHandler("server", server_cmd))
+    app.add_handler(CallbackQueryHandler(on_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
+    app.add_error_handler(error_handler)
+    print(f"[BOT] Starting for {ALLOWED_USER}...")
+    app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()
