@@ -38,10 +38,22 @@ app = FastAPI(title="Remote Desktop Cyberpunk", version="2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Explicit OPTIONS handler for GH Pages preflight (cloudflared needs it)
+@app.options("/{path:path}")
+async def options_handler(path: str, request: Request):
+    return JSONResponse(
+        {},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+    )
 
 # ── Screen capture ──────────────────────────────────────────────────
 _sct = mss.mss()
