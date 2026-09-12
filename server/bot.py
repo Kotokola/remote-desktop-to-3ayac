@@ -498,9 +498,9 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     txt = update.message.text or ""
     if uid in awaiting_cmd:
         awaiting_cmd.discard(uid)
-        await update.message.reply_text(f"⏳ Executing in CMD: `{txt}`", parse_mode="Markdown")
+        await update.message.reply_text(f"⏳ Executing in PowerShell: `{txt}`", parse_mode="Markdown")
         try:
-            r = subprocess.run(txt, shell=True, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
+            r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", txt], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
             out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
             if not out: out = f"(exit {r.returncode})"
             out = out[-3800:]
