@@ -63,8 +63,17 @@ def read_file(p):
 
 def run_cmd(cmd):
     try:
-        r=subprocess.run(cmd,shell=True,capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=30,cwd=os.path.expanduser("~"))
-        return {"stdout":r.stdout[-6000:],"stderr":r.stderr[-3000:],"returncode":r.returncode}
+        # Use bytes then decode with OEM cp866 for correct Cyrillic
+        r=subprocess.run(cmd,shell=True,capture_output=True,timeout=30,cwd=os.path.expanduser("~"))
+        def dec(b):
+            if not b: return ""
+            for enc in ("cp866","utf-8","cp1251","latin1"):
+                try: return b.decode(enc)
+                except: continue
+            return b.decode("utf-8", errors="replace")
+        out = dec(r.stdout)[-6000:]
+        err = dec(r.stderr)[-3000:]
+        return {"stdout":out,"stderr":err,"returncode":r.returncode}
     except Exception as e: return {"error":str(e)}
 
 def delete_path(p):
