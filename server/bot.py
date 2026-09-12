@@ -390,33 +390,36 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return await update.callback_query.answer("DENIED", show_alert=True)
     q = update.callback_query; await q.answer()
     data = q.data
+    msg = q.message or update.effective_message
     try:
         if data == "do:screen":
             d, e = capture_screen_bytes()
-            if e: await q.message.reply_text(f"❌ {e}")
-            else: await q.message.reply_photo(photo=d, caption="🖥 Screen")
-        elif data == "do:sysinfo": await q.message.reply_text(sysinfo_text(), parse_mode="Markdown")
+            if not msg: return
+            if e: await msg.reply_text(f"❌ {e}")
+            else: await msg.reply_photo(photo=d, caption="🖥 Screen")
+            return
+        elif data == "do:sysinfo": await msg.reply_text(sysinfo_text(), parse_mode="Markdown")
         elif data == "do:files":
-            txt, kb = list_dir_text(str(Path.home())); await q.message.reply_text(txt[:4000], parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
-        elif data == "do:terminal": await q.message.reply_text("💻 Введи /exec <команда> или нажми: /exec")
+            txt, kb = list_dir_text(str(Path.home())); await msg.reply_text(txt[:4000], parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
+        elif data == "do:terminal": await msg.reply_text("💻 Введи /exec <команда> или нажми: /exec")
         elif data == "do:cmd": await cmd_winr(update, ctx)
         elif data == "do:opencode": await opencode_cmd(update, ctx)
         elif data == "do:server": await server_cmd(update, ctx)
         elif data == "do:help": await help_cmd(update, ctx)
         elif data.startswith("files:"):
-            path = data[6:]; txt, kb = list_dir_text(path); await q.message.reply_text(txt[:4000], parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
+            path = data[6:]; txt, kb = list_dir_text(path); await msg.reply_text(txt[:4000], parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
         elif data.startswith("read:"):
             path = data[5:]
             try:
                 p = Path(path); txt = p.read_text(encoding="utf-8", errors="replace")[:3500]
-                await q.message.reply_text(f"📄 `{p.name}`\n```\n{txt}\n```", parse_mode="Markdown")
-            except Exception as e: await q.message.reply_text(f"❌ {e}")
+                await msg.reply_text(f"📄 `{p.name}`\n```\n{txt}\n```", parse_mode="Markdown")
+            except Exception as e: await msg.reply_text(f"❌ {e}")
         elif data.startswith("op:"):
             act = data[3:]
             path = opencode_path()
             if act == "launch":
-                if path: subprocess.Popen([path]); await q.message.reply_text("▶️ Launching OpenCode...")
-                else: await q.message.reply_text("❌ OpenCode.exe not found")
+                if path: subprocess.Popen([path]); await msg.reply_text("▶️ Launching OpenCode...")
+                else: await msg.reply_text("❌ OpenCode.exe not found")
             elif act == "killall":
                 killed=0
                 if psutil:
@@ -424,10 +427,10 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         if 'opencode' in p.info['name'].lower():
                             try: psutil.Process(p.info['pid']).kill(); killed+=1
                             except: pass
-                await q.message.reply_text(f"❌ Killed {killed}")
+                await msg.reply_text(f"❌ Killed {killed}")
             elif act == "list":
                 procs = [p.info for p in psutil.process_iter(['pid','name']) if 'opencode' in p.info['name'].lower()] if psutil else []
-                await q.message.reply_text("PIDs:\n" + "\n".join([f"{p['pid']} {p['name']}" for p in procs]) or "none")
+                await msg.reply_text("PIDs:\n" + "\n".join([f"{p['pid']} {p['name']}" for p in procs]) or "none")
             elif act == "restart":
                 if psutil:
                     for p in psutil.process_iter(['pid','name']):
@@ -435,54 +438,54 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                             try: psutil.Process(p.info['pid']).kill()
                             except: pass
                     time.sleep(1)
-                if path: subprocess.Popen([path]); await q.message.reply_text("🔄 Restarted")
-            elif act == "continue": await q.message.reply_text("💬 Продолжаю в том же чате — просто пиши сообщение в OpenCode (окно уже открыто).")
+                if path: subprocess.Popen([path]); await msg.reply_text("🔄 Restarted")
+            elif act == "continue": await msg.reply_text("💬 Продолжаю в том же чате — просто пиши сообщение в OpenCode (окно уже открыто).")
             elif act == "choose":
                 ws = get_opencode_workspaces()
-                if not ws: await q.message.reply_text("Нет сохранённых чатов")
+                if not ws: await msg.reply_text("Нет сохранённых чатов")
                 else:
                     kb2 = [[InlineKeyboardButton(w['name'][:30], callback_data=f"opchoose:{w['file']}")] for w in ws[:8]]
-                    await q.message.reply_text("📂 Выбери чат:", reply_markup=InlineKeyboardMarkup(kb2))
+                    await msg.reply_text("📂 Выбери чат:", reply_markup=InlineKeyboardMarkup(kb2))
             elif act == "new": 
-                if path: subprocess.Popen([path, "--new-window"]); await q.message.reply_text("➕ New chat window opened")
-            elif act == "close": await q.message.reply_text("🗑 Чтобы закрыть чат в OpenCode: Ctrl+W или кнопка закрытия окна. Команда отправлена: Alt+F4")
+                if path: subprocess.Popen([path, "--new-window"]); await msg.reply_text("➕ New chat window opened")
+            elif act == "close": await msg.reply_text("🗑 Чтобы закрыть чат в OpenCode: Ctrl+W или кнопка закрытия окна. Команда отправлена: Alt+F4")
             elif act == "front":
                 if pyautogui:
                     # try to bring to front via Alt+Tab simulation
-                    pyautogui.hotkey('alt','tab'); await q.message.reply_text("🖥 Попытка вернуть фокус OpenCode")
-                else: await q.message.reply_text("❌ pyautogui needed")
-            else: await q.message.reply_text(f"op:{act} — в разработке")
+                    pyautogui.hotkey('alt','tab'); await msg.reply_text("🖥 Попытка вернуть фокус OpenCode")
+                else: await msg.reply_text("❌ pyautogui needed")
+            else: await msg.reply_text(f"op:{act} — в разработке")
         elif data.startswith("term:"):
             sub = data[5:]
             uid = update.effective_user.id
             if sub == "new":
                 sid = f"term{len(term_sessions.get(uid, {}))+1}"
                 get_term(uid, sid)
-                await q.message.reply_text(f"➕ Создан {sid}")
+                await msg.reply_text(f"➕ Создан {sid}")
             elif sub == "wins":
                 wins = list_windows()
-                if not wins: await q.message.reply_text("Нет окон")
+                if not wins: await msg.reply_text("Нет окон")
                 else:
                     txt = "🪟 *Windows:*\n" + "\n".join([f"`{hwnd}` {t}" for hwnd,t in wins[:15]])
                     kb2 = [[InlineKeyboardButton(f"🔝 {t[:20]}", callback_data=f"win:front:{hwnd}"), InlineKeyboardButton(f"❌ {hwnd}", callback_data=f"win:close:{hwnd}")] for hwnd,t in wins[:8]]
-                    await q.message.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb2) if kb2 else None)
+                    await msg.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb2) if kb2 else None)
             elif sub == "close":
                 if uid in term_sessions and term_sessions[uid]:
                     sid = list(term_sessions[uid].keys())[-1]
                     try: term_sessions[uid][sid]["proc"].terminate()
                     except: pass
                     term_sessions[uid].pop(sid, None)
-                    await q.message.reply_text(f"🗑 Closed {sid}")
-                else: await q.message.reply_text("Нет терминалов")
+                    await msg.reply_text(f"🗑 Closed {sid}")
+                else: await msg.reply_text("Нет терминалов")
             elif sub == "killall":
                 for sid in list(term_sessions.get(uid, {}).keys()):
                     try: term_sessions[uid][sid]["proc"].kill()
                     except: pass
                 term_sessions[uid] = {}
-                await q.message.reply_text("💀 All killed")
+                await msg.reply_text("💀 All killed")
             elif sub.startswith("use:"):
                 sid = sub[4:]
-                await q.message.reply_text(f"💻 Активен {sid} — следующие `/exec` пойдут туда. Введи команду.")
+                await msg.reply_text(f"💻 Активен {sid} — следующие `/exec` пойдут туда. Введи команду.")
                 awaiting_exec.add(uid)
         elif data.startswith("win:"):
             _, act, hwnd = data.split(":",2)
@@ -491,18 +494,18 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 hwnd = int(hwnd)
                 if act == "front":
                     ctypes.windll.user32.SetForegroundWindow(hwnd)
-                    await q.message.reply_text(f"🔝 Front {hwnd}")
+                    await msg.reply_text(f"🔝 Front {hwnd}")
                 elif act == "close":
                     ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
-                    await q.message.reply_text(f"❌ Close sent {hwnd}")
-            except Exception as e: await q.message.reply_text(f"❌ {e}")
+                    await msg.reply_text(f"❌ Close sent {hwnd}")
+            except Exception as e: await msg.reply_text(f"❌ {e}")
         elif data.startswith("opchoose:"):
-            await q.message.reply_text(f"📂 Открываю {data[9:][:40]} — запусти OpenCode и выбери workspace вручную (путь скопирован).")
+            await msg.reply_text(f"📂 Открываю {data[9:][:40]} — запусти OpenCode и выбери workspace вручную (путь скопирован).")
         elif data.startswith("srv:"):
             act = data[4:]
             if act == "start":
                 subprocess.Popen([sys.executable, "server_nocors.py"], cwd=str(Path(__file__).parent))
-                await q.message.reply_text("▶️ server_nocors.py started")
+                await msg.reply_text("▶️ server_nocors.py started")
             elif act == "restart":
                 if psutil:
                     for p in psutil.process_iter(['pid','name','cmdline']):
@@ -512,7 +515,7 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         except: pass
                     time.sleep(1)
                 subprocess.Popen([sys.executable, "server_nocors.py"], cwd=str(Path(__file__).parent))
-                await q.message.reply_text("🔄 Restarted")
+                await msg.reply_text("🔄 Restarted")
             elif act == "stop":
                 killed=0
                 if psutil:
@@ -521,11 +524,11 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                             cl=" ".join(p.info['cmdline'] or [])
                             if "server_nocors" in cl: psutil.Process(p.info['pid']).kill(); killed+=1
                         except: pass
-                await q.message.reply_text(f"⏹ Stopped {killed}")
+                await msg.reply_text(f"⏹ Stopped {killed}")
             elif act == "status": await server_cmd(update, ctx)
-            elif act == "logs": await q.message.reply_text("📜 Логи смотри в консоли где запущен python server_nocors.py")
-        else: await q.message.reply_text(f"Unknown: {data}")
-    except Exception as e: await q.message.reply_text(f"❌ {e}")
+            elif act == "logs": await msg.reply_text("📜 Логи смотри в консоли где запущен python server_nocors.py")
+        else: await msg.reply_text(f"Unknown: {data}")
+    except Exception as e: await msg.reply_text(f"❌ {e}")
 
 async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return
