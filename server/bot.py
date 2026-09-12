@@ -66,16 +66,22 @@ def get_term(user_id, sess_id="default"):
     if user_id not in term_sessions: term_sessions[user_id] = {}
     if sess_id not in term_sessions[user_id]:
         try:
+            # start powershell with UTF-8
             proc = subprocess.Popen(
-                ["powershell.exe", "-NoLogo", "-NoExit", "-Command", "-"],
+                ["powershell.exe", "-NoLogo", "-NoExit", "-Command", "chcp 65001 >$null; [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.Encoding]::UTF8"],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace", bufsize=1, cwd=str(Path.home()),
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
             )
+            # drain initial banner
+            time.sleep(0.3)
+            try: proc.stdout.read(1024)
+            except: pass
             term_sessions[user_id][sess_id] = {"proc": proc, "title": sess_id, "cwd": str(Path.home())}
         except Exception as e:
             proc = subprocess.Popen(
-                ["cmd.exe"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                ["cmd.exe", "/k", "chcp 65001 >nul"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace", bufsize=1, cwd=str(Path.home()),
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
             )
@@ -85,13 +91,42 @@ def get_term(user_id, sess_id="default"):
 def exec_persistent(cmd, user_id, sess_id="default", timeout=15):
     sess = get_term(user_id, sess_id)
     proc = sess["proc"]
-    if proc.poll() is not None: # dead, recreate
+    if proc.poll() is not None:
         term_sessions[user_id].pop(sess_id, None)
         sess = get_term(user_id, sess_id)
         proc = sess["proc"]
+    # handle cd with LiteralPath to support \u2800 and —
+    stripped = cmd.strip()
+    if stripped.lower().startswith("cd "):
+        try:
+            raw = stripped[3:].strip().strip('"').strip("'")
+            # remove /d for cmd compat
+            if raw.lower().startswith("/d "): raw = raw[3:].strip().strip('"').strip("'")
+            if raw:
+                # use PowerShell Set-Location -LiteralPath
+                # escape single quotes by doubling
+                esc = raw.replace("'", "''")
+                proc.stdin.write(f"Set-Location -LiteralPath '{esc}'\n")
+                proc.stdin.write(f"echo __END_{time.time()}__\n")
+                proc.stdin.flush()
+                # drain
+                out = ""
+                start = time.time()
+                marker = "__END_"
+                while time.time() - start < 2:
+                    line = proc.stdout.readline()
+                    if not line: time.sleep(0.05); continue
+                    if marker in line: break
+                # also update python cwd for next non-persistent runs
+                try: os.chdir(raw)
+                except: pass
+                sess["cwd"] = raw
+                return f"📁 cd -> {raw}"
+        except Exception as e:
+            return f"cd error: {e}"
     marker = f"__END_{time.time()}__"
     try:
-        proc.stdin.write(cmd + f"\necho {marker}\n")
+        proc.stdin.write(cmd + f"\nWrite-Output {marker}\n")
         proc.stdin.flush()
         out = ""
         start = time.time()
@@ -101,7 +136,7 @@ def exec_persistent(cmd, user_id, sess_id="default", timeout=15):
             if marker in line: break
             out += line
             if len(out) > 6000: break
-        return out.strip() or f"(no output, marker {marker})"
+        return out.strip() or f"(no output)"
     except Exception as e:
         return f"exec error: {e}"
 
