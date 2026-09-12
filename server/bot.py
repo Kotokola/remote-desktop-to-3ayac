@@ -531,6 +531,34 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return
     uid = update.effective_user.id
     txt = update.message.text or ""
+    # live commands: "открой файл C:\..." / "open file C:\..."
+    low = txt.lower().strip()
+    if low.startswith("открой") or low.startswith("open"):
+        # parse path after "открой файл" / "открой папку" / "open file"
+        m = re.search(r'(?:открой|open)\s+(?:файл|папку|file|folder)?\s*(.+)', txt, re.IGNORECASE)
+        raw = m.group(1).strip().strip('"').strip("'") if m else ""
+        if raw:
+            p = Path(raw)
+            try:
+                if p.exists():
+                    if p.is_dir():
+                        os.startfile(str(p)) if os.name=="nt" else subprocess.Popen(["xdg-open", str(p)])
+                        await update.message.reply_text(f"📂 Открыл папку `{p}`")
+                    else:
+                        os.startfile(str(p)) if os.name=="nt" else subprocess.Popen(["xdg-open", str(p)])
+                        await update.message.reply_text(f"📄 Открыл файл `{p}`")
+                    # instant screen after open
+                    d, e = capture_screen_bytes()
+                    if not e: await update.message.reply_photo(photo=d, caption=f"🖥 После открытия {p.name}")
+                else:
+                    await update.message.reply_text(f"❌ Не найден: `{p}`")
+            except Exception as e: await update.message.reply_text(f"❌ {e}")
+            return
+    if low.startswith("скрин") or low == "screen" or low.startswith("снимок"):
+        d, e = capture_screen_bytes()
+        if e: await update.message.reply_text(f"❌ {e}")
+        else: await update.message.reply_photo(photo=d, caption="🖥 Моментальный скрин")
+        return
     if uid in awaiting_cmd:
         awaiting_cmd.discard(uid)
         await update.message.reply_text(f"⏳ Executing in PowerShell: `{txt}`", parse_mode="Markdown")
@@ -550,11 +578,8 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"```\n{out[-3800:]}\n```", parse_mode="Markdown")
         except Exception as e: await update.message.reply_text(f"❌ {e}")
         return
-    # if starts with / skip (handled elsewhere)
     if txt.startswith("/"): return
-    # auto exec if user just types command without /exec (when they have active term)
     if uid in term_sessions and term_sessions[uid]:
-        # optional: treat any text as command if they are in terminal mode
         pass
 
 async def error_handler(update, ctx):
