@@ -67,7 +67,6 @@ def run_cmd(cmd):
     global CURRENT_CWD
     try:
         stripped = cmd.strip()
-        # handle cd persistent
         if stripped.lower().startswith("cd "):
             raw = stripped[3:].strip().strip('"').strip("'")
             if raw.lower().startswith("/d "): raw = raw[3:].strip().strip('"').strip("'")
@@ -79,9 +78,18 @@ def run_cmd(cmd):
                 p = p.resolve()
             if p.exists() and p.is_dir():
                 CURRENT_CWD = p
-                return {"stdout": f"📁 {CURRENT_CWD}\n", "stderr": "", "returncode": 0}
+                return {"stdout": f"📁 {CURRENT_CWD}\n", "stderr": "", "returncode": 0, "cwd": str(CURRENT_CWD)}
             else:
-                return {"stdout": "", "stderr": f"Не найден: {p}\n", "returncode": 1}
+                return {"stdout": "", "stderr": f"Не найден: {p}\n", "returncode": 1, "cwd": str(CURRENT_CWD)}
+        # long-running python bots -> run detached, no wait
+        low = stripped.lower()
+        if ("main_bot" in low or "bot.py" in low) and low.startswith("python"):
+            try:
+                # run as detached
+                subprocess.Popen(cmd, shell=True, cwd=str(CURRENT_CWD), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
+                return {"stdout": f"🚀 Запущен в фоне: {cmd}\nPID detached\ncwd: {CURRENT_CWD}\n", "stderr": "", "returncode": 0, "cwd": str(CURRENT_CWD)}
+            except Exception as e:
+                return {"stdout": "", "stderr": str(e), "returncode": 1}
         r=subprocess.run(cmd,shell=True,capture_output=True,timeout=30,cwd=str(CURRENT_CWD))
         def dec(b):
             if not b: return ""
@@ -91,7 +99,6 @@ def run_cmd(cmd):
             return b.decode("utf-8", errors="replace")
         out = dec(r.stdout)[-6000:]
         err = dec(r.stderr)[-3000:]
-        # prepend cwd for prompt
         return {"stdout": out, "stderr": err, "returncode": r.returncode, "cwd": str(CURRENT_CWD)}
     except Exception as e: return {"error":str(e)}
 
