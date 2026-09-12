@@ -160,8 +160,10 @@ class H(BaseHTTPRequestHandler):
         res={}
         if action=="set_quality":
             try:
+                global JPEG_QUALITY, SCREEN_SCALE, _last_frame
                 q = int(data.get("quality", 55)); s = float(data.get("scale", 0.5))
                 JPEG_QUALITY = max(20, min(95, q)); SCREEN_SCALE = max(0.2, min(1.0, s))
+                _last_frame = None
                 res={"ok": True, "quality": JPEG_QUALITY, "scale": SCREEN_SCALE}
             except Exception as e: res={"error": str(e)}
         elif action=="auth":
