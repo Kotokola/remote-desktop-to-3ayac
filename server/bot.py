@@ -65,20 +65,18 @@ TERM_MAX = 5
 def get_term(user_id, sess_id="default"):
     if user_id not in term_sessions: term_sessions[user_id] = {}
     if sess_id not in term_sessions[user_id]:
-        # create hidden persistent powershell
         try:
             proc = subprocess.Popen(
                 ["powershell.exe", "-NoLogo", "-NoExit", "-Command", "-"],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, cwd=str(Path.home()),
+                text=True, encoding="utf-8", errors="replace", bufsize=1, cwd=str(Path.home()),
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
             )
             term_sessions[user_id][sess_id] = {"proc": proc, "title": sess_id, "cwd": str(Path.home())}
         except Exception as e:
-            # fallback to cmd
             proc = subprocess.Popen(
                 ["cmd.exe"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, cwd=str(Path.home()),
+                text=True, encoding="utf-8", errors="replace", bufsize=1, cwd=str(Path.home()),
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
             )
             term_sessions[user_id][sess_id] = {"proc": proc, "title": sess_id, "cwd": str(Path.home())}
@@ -289,7 +287,7 @@ async def exec_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         out = exec_persistent(cmd, update.effective_user.id)
         out = out[-3800:] or "(no output)"
         await update.message.reply_text(f"```\n{out}\n```", parse_mode="Markdown")
-    except Exception as e: await update.message.reply_text(f"❌ {e}")
+    except Exception as e: await update.message.reply_text(f"❌ {e} (charmap fixed, retry)")
 
 async def cmd_winr(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return await deny(update)
@@ -464,6 +462,8 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     await q.message.reply_text(f"❌ Close sent {hwnd}")
             except Exception as e: await q.message.reply_text(f"❌ {e}")
         elif data.startswith("opchoose:"):
+            await q.message.reply_text(f"📂 Открываю {data[9:][:40]} — запусти OpenCode и выбери workspace вручную (путь скопирован).")
+        elif data.startswith("srv:"):
             act = data[4:]
             if act == "start":
                 subprocess.Popen([sys.executable, "server_nocors.py"], cwd=str(Path(__file__).parent))
@@ -500,7 +500,7 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         awaiting_cmd.discard(uid)
         await update.message.reply_text(f"⏳ Executing in CMD: `{txt}`", parse_mode="Markdown")
         try:
-            r = subprocess.run(txt, shell=True, capture_output=True, text=True, timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
+            r = subprocess.run(txt, shell=True, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
             out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
             if not out: out = f"(exit {r.returncode})"
             out = out[-3800:]

@@ -6,21 +6,33 @@ import mss
 import pyautogui
 from PIL import Image
 
-HOST="0.0.0.0"; PORT=8765; PASSWORD="admin123"
-JPEG_QUALITY=65; SCREEN_SCALE=0.6
+HOST="0.0.0.0"; PORT=8765; PASSWORD="Sergo1515"
+JPEG_QUALITY=55; SCREEN_SCALE=0.5
+FPS_TARGET=30
 pyautogui.FAILSAFE=False
 sct=mss.mss()
+_last_frame = None
+_last_time = 0
 
 def capture():
+    global _last_frame, _last_time, JPEG_QUALITY, SCREEN_SCALE
     try:
+        import time as _t
+        now = _t.time()
+        if now - _last_time < 0.030:
+            if _last_frame: return _last_frame
         mon=sct.monitors[1]; shot=sct.grab(mon)
         img=Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
         nw=int(img.width*SCREEN_SCALE); nh=int(img.height*SCREEN_SCALE)
-        img=img.resize((nw,nh), Image.Resampling.LANCZOS)
-        buf=io.BytesIO(); img.save(buf, format="JPEG", quality=JPEG_QUALITY)
-        return buf.getvalue(),nw,nh
+        # BILINEAR balanced quality/speed
+        img=img.resize((nw,nh), Image.Resampling.BILINEAR)
+        buf=io.BytesIO(); img.save(buf, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+        data = buf.getvalue()
+        _last_frame = (data, nw, nh)
+        _last_time = now
+        return data,nw,nh
     except Exception as e:
-        print(e); img=Image.new("RGB",(960,540),(10,10,26)); buf=io.BytesIO(); img.save(buf,format="JPEG",quality=40); return buf.getvalue(),960,540
+        print(e); img=Image.new("RGB",(960,540),(10,10,26)); buf=io.BytesIO(); img.save(buf,format="JPEG",quality=30); return buf.getvalue(),960,540
 
 def sysinfo():
     try:
@@ -51,8 +63,43 @@ def read_file(p):
 
 def run_cmd(cmd):
     try:
-        r=subprocess.run(cmd,shell=True,capture_output=True,text=True,timeout=30,cwd=os.path.expanduser("~"))
+        r=subprocess.run(cmd,shell=True,capture_output=True,text=True,encoding="utf-8",errors="replace",timeout=30,cwd=os.path.expanduser("~"))
         return {"stdout":r.stdout[-6000:],"stderr":r.stderr[-3000:],"returncode":r.returncode}
+    except Exception as e: return {"error":str(e)}
+
+def delete_path(p):
+    try:
+        pa=Path(p).expanduser().resolve()
+        if not pa.exists(): return {"error":"Not found"}
+        if str(pa) in ["/","C:/","C:\\", str(Path.home().root)]:
+            return {"error":"Refuse to delete root"}
+        if pa.is_dir():
+            import shutil
+            shutil.rmtree(str(pa))
+            return {"ok": True, "deleted": str(pa)}
+        else:
+            pa.unlink()
+            return {"ok": True, "deleted": str(pa)}
+    except Exception as e: return {"error":str(e)}
+
+def rename_path(src, dst):
+    try:
+        s=Path(src).expanduser().resolve(); d=Path(dst).expanduser().resolve()
+        if not s.exists(): return {"error":"Source not found"}
+        s.rename(d); return {"ok": True, "from": str(s), "to": str(d)}
+    except Exception as e: return {"error":str(e)}
+
+def mkdir_path(p):
+    try: Path(p).expanduser().resolve().mkdir(parents=True, exist_ok=True); return {"ok": True, "path": str(Path(p).expanduser().resolve())}
+    except Exception as e: return {"error":str(e)}
+
+def copy_path(src, dst):
+    try:
+        import shutil
+        s=Path(src).expanduser().resolve(); d=Path(dst).expanduser().resolve()
+        if s.is_dir(): shutil.copytree(str(s), str(d))
+        else: shutil.copy2(str(s), str(d))
+        return {"ok": True}
     except Exception as e: return {"error":str(e)}
 
 def scale(x,y,sw,sh,cw,ch):
@@ -111,7 +158,13 @@ class H(BaseHTTPRequestHandler):
         elif path=="/api/input": handle_input(data); self.send_response(200); self.send_header("Content-type","application/json"); self.end_headers(); self.wfile.write(json.dumps({"ok":True}).encode()); return
 
         res={}
-        if action=="auth":
+        if action=="set_quality":
+            try:
+                q = int(data.get("quality", 55)); s = float(data.get("scale", 0.5))
+                JPEG_QUALITY = max(20, min(95, q)); SCREEN_SCALE = max(0.2, min(1.0, s))
+                res={"ok": True, "quality": JPEG_QUALITY, "scale": SCREEN_SCALE}
+            except Exception as e: res={"error": str(e)}
+        elif action=="auth":
             if data.get("password")==PASSWORD: res={"action":"auth_ok","info":sysinfo()}
             else: self.send_response(401); self.send_header("Content-type","application/json"); self.end_headers(); self.wfile.write(json.dumps({"action":"auth_fail"}).encode()); return
         elif action=="screenshot":
@@ -120,6 +173,10 @@ class H(BaseHTTPRequestHandler):
         elif action=="list_dir": res={"action":"dir_list",**list_dir(data.get("path",os.path.expanduser("~")))}
         elif action=="read_file": res={"action":"file_content",**read_file(data.get("path",""))}
         elif action=="run_cmd": res={"action":"cmd_result",**run_cmd(data.get("cmd",""))}
+        elif action in ("delete_file","delete_path","delete"): res={**delete_path(data.get("path",""))}
+        elif action=="rename": res={**rename_path(data.get("src",""), data.get("dst",""))}
+        elif action=="mkdir": res={**mkdir_path(data.get("path",""))}
+        elif action=="copy": res={**copy_path(data.get("src",""), data.get("dst",""))}
         elif action in ("mouse_move","mouse_click","mouse_down","mouse_up","scroll","key_press","key","type"): handle_input(data); res={"ok":True}
         else: res={"action":"error","message":"unknown "+action}
         self.send_response(200); self.send_header("Content-type","application/json"); self.end_headers()
