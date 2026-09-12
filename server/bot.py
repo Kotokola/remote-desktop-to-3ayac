@@ -200,12 +200,13 @@ def get_opencode_workspaces():
 def capture_screen_bytes():
     if not mss or not Image: return None, "mss/Pillow not installed"
     try:
-        with mss.mss() as sct:
+        with mss.MSS() as sct:
             mon = sct.monitors[1]
             shot = sct.grab(mon)
             img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
-            img = img.resize((int(img.width*0.6), int(img.height*0.6)), Image.Resampling.LANCZOS)
-            buf = io.BytesIO(); img.save(buf, format="JPEG", quality=65)
+            # smaller for proxy to avoid Malformed reply
+            img = img.resize((int(img.width*0.45), int(img.height*0.45)), Image.Resampling.BILINEAR)
+            buf = io.BytesIO(); img.save(buf, format="JPEG", quality=55, optimize=True)
             return buf.getvalue(), None
     except Exception as e: return None, str(e)
 
@@ -269,15 +270,85 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/start — меню\n"
         "/screen — скрин экрана\n"
         "/sysinfo — CPU/RAM/Disk\n"
-        "/files [path] — файлы (инлайн навигация)\n"
-        "/exec <cmd> — выполнить команду (вывод до 4000 симв)\n"
-        "/cmd — WIN+R → cmd → ждёт твою команду в чате → выполняет\n"
-        "/opencode — управление OpenCode.exe\n"
-        "/server — restart/status сервера (server_nocors.py)\n"
-        "/kill <pid> — убить процесс\n"
-        "Также кнопки в меню.",
+        "/files [path] — файлы\n"
+        "/exec <cmd> — PowerShell (скрыто, без окна)\n"
+        "/cmd — WIN+R → cmd → ждёт команду\n"
+        "/opencode — OpenCode\n"
+        "/server — управление сервером\n"
+        "/lock — заблокировать ПК\n"
+        "/shutdown — выключить\n"
+        "/reboot — перезагрузить\n"
+        "/volume 0-100 — громкость\n"
+        "/clipboard — буфер обмена\n"
+        "/download <path> — скачать файл\n"
+        "/ps — процессы\n"
+        "/kill <pid> — убить\n"
+        "Текст: `открой файл C:\\...`, `скрин`",
         parse_mode="Markdown"
     )
+
+async def lock_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    try:
+        import ctypes; ctypes.windll.user32.LockWorkStation()
+        await update.message.reply_text("🔒 Заблокировано")
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
+
+async def shutdown_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    await update.message.reply_text("⏳ Выключение через 5с... /abort для отмены")
+    subprocess.Popen("shutdown /s /t 5", shell=True)
+
+async def reboot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    await update.message.reply_text("🔄 Перезагрузка через 5с...")
+    subprocess.Popen("shutdown /r /t 5", shell=True)
+
+async def volume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    try:
+        vol = int(ctx.args[0]) if ctx.args else 50
+        vol = max(0,min(100,vol))
+        # PowerShell set volume
+        subprocess.run(f"(New-Object -comObject WScript.Shell).SendKeys([char]175)", shell=True) # placeholder
+        # Use nircmd if available, else PowerShell
+        ps = f"$v={vol}; $o=New-Object -ComObject WScript.Shell; for($i=0;$i<50;$i++){{$o.SendKeys([char]174)}}; for($i=0;$i<{vol//2};$i++){{$o.SendKeys([char]175)}}"
+        subprocess.run(["powershell.exe","-Command",ps], creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
+        await update.message.reply_text(f"🔊 Громкость ~{vol}%")
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
+
+async def clipboard_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    if ctx.args:
+        txt = " ".join(ctx.args)
+        try:
+            import pyperclip; pyperclip.copy(txt); await update.message.reply_text(f"📋 Скопировано: {txt[:100]}")
+            return
+        except Exception as e: await update.message.reply_text(f"❌ {e}"); return
+    try:
+        import pyperclip; txt = pyperclip.paste()
+        await update.message.reply_text(f"📋 Буфер:\n```\n{txt[:3000]}\n```", parse_mode="Markdown")
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
+
+async def download_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    path = " ".join(ctx.args) if ctx.args else ""
+    if not path: await update.message.reply_text("Использование: /download C:\\path\\file"); return
+    p = Path(path)
+    if not p.exists(): await update.message.reply_text("❌ Не найден"); return
+    if p.stat().st_size > 50*1024*1024: await update.message.reply_text("❌ >50MB"); return
+    try: await update.message.reply_document(document=open(str(p),"rb"), filename=p.name)
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
+
+async def ps_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id): return await deny(update)
+    try:
+        if not psutil: await update.message.reply_text("psutil not installed"); return
+        txt = "🖥 *Processes:*\n"
+        for p in sorted(psutil.process_iter(['pid','name','cpu_percent']), key=lambda x: x.info['cpu_percent'] or 0, reverse=True)[:15]:
+            txt += f"`{p.info['pid']:5}` {p.info['name'][:20]:20} {p.info['cpu_percent']}%\n"
+        await update.message.reply_text(txt, parse_mode="Markdown")
+    except Exception as e: await update.message.reply_text(f"❌ {e}")
 
 async def screen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return await deny(update)
@@ -530,15 +601,20 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         else: await msg.reply_text(f"Unknown: {data}")
     except Exception as e: await msg.reply_text(f"❌ {e}")
 
+def sanitize(s: str) -> str:
+    # Telegram via proxy fails on \u2800 braille, replace
+    return s.replace("\u2800", " ").replace("\u200b","").replace("\x00","")
+
 async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id): return
     uid = update.effective_user.id
-    txt = update.message.text or ""
+    txt_raw = update.message.text or ""
+    txt = sanitize(txt_raw)
     # live commands: "открой файл C:\..." / "open file C:\..."
     low = txt.lower().strip()
+    low_raw = txt_raw.lower().strip()
     if low.startswith("открой") or low.startswith("open"):
-        # parse path after "открой файл" / "открой папку" / "open file"
-        m = re.search(r'(?:открой|open)\s+(?:файл|папку|file|folder)?\s*(.+)', txt, re.IGNORECASE)
+        m = re.search(r'(?:открой|open)\s+(?:файл|папку|file|folder)?\s*(.+)', txt_raw, re.IGNORECASE)
         raw = m.group(1).strip().strip('"').strip("'") if m else ""
         if raw:
             p = Path(raw)
@@ -546,16 +622,15 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 if p.exists():
                     if p.is_dir():
                         os.startfile(str(p)) if os.name=="nt" else subprocess.Popen(["xdg-open", str(p)])
-                        await update.message.reply_text(f"📂 Открыл папку `{p}`")
+                        await update.message.reply_text(f"📂 Открыл папку `{sanitize(str(p))}`")
                     else:
                         os.startfile(str(p)) if os.name=="nt" else subprocess.Popen(["xdg-open", str(p)])
-                        await update.message.reply_text(f"📄 Открыл файл `{p}`")
-                    # instant screen after open
+                        await update.message.reply_text(f"📄 Открыл файл `{sanitize(str(p))}`")
                     d, e = capture_screen_bytes()
-                    if not e: await update.message.reply_photo(photo=d, caption=f"🖥 После открытия {p.name}")
+                    if not e: await update.message.reply_photo(photo=d, caption=f"🖥 После открытия {sanitize(p.name)}")
                 else:
-                    await update.message.reply_text(f"❌ Не найден: `{p}`")
-            except Exception as e: await update.message.reply_text(f"❌ {e}")
+                    await update.message.reply_text(f"❌ Не найден: `{sanitize(str(p))}`")
+            except Exception as e: await update.message.reply_text(f"❌ {sanitize(str(e))}")
             return
     if low.startswith("скрин") or low == "screen" or low.startswith("снимок"):
         d, e = capture_screen_bytes()
@@ -566,20 +641,20 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         awaiting_cmd.discard(uid)
         await update.message.reply_text(f"⏳ Executing in PowerShell: `{txt}`", parse_mode="Markdown")
         try:
-            r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", txt], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
+            r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", txt_raw], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=str(Path.home()), creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
             out = (r.stdout or "") + ("\n"+r.stderr if r.stderr else "")
             if not out: out = f"(exit {r.returncode})"
-            out = out[-3800:]
+            out = sanitize(out)[-3800:]
             await update.message.reply_text(f"```\n{out}\n```\nExit: {r.returncode}", parse_mode="Markdown")
-        except Exception as e: await update.message.reply_text(f"❌ {e}")
+        except Exception as e: await update.message.reply_text(f"❌ {sanitize(str(e))}")
         return
     if uid in awaiting_exec:
         awaiting_exec.discard(uid)
         await update.message.reply_text(f"⏳ Exec (persistent, no new window): `{txt}`", parse_mode="Markdown")
         try:
-            out = exec_persistent(txt, uid)
+            out = sanitize(exec_persistent(txt_raw, uid))
             await update.message.reply_text(f"```\n{out[-3800:]}\n```", parse_mode="Markdown")
-        except Exception as e: await update.message.reply_text(f"❌ {e}")
+        except Exception as e: await update.message.reply_text(f"❌ {sanitize(str(e))}")
         return
     if txt.startswith("/"): return
     if uid in term_sessions and term_sessions[uid]:
@@ -606,6 +681,14 @@ def main():
             app.add_handler(CommandHandler("cmd", cmd_winr))
             app.add_handler(CommandHandler("opencode", opencode_cmd))
             app.add_handler(CommandHandler("server", server_cmd))
+            app.add_handler(CommandHandler("lock", lock_cmd))
+            app.add_handler(CommandHandler("shutdown", shutdown_cmd))
+            app.add_handler(CommandHandler("reboot", reboot_cmd))
+            app.add_handler(CommandHandler("volume", volume_cmd))
+            app.add_handler(CommandHandler("clipboard", clipboard_cmd))
+            app.add_handler(CommandHandler("download", download_cmd))
+            app.add_handler(CommandHandler("ps", ps_cmd))
+            app.add_handler(CommandHandler("processes", ps_cmd))
             app.add_handler(CallbackQueryHandler(on_callback))
             app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
             app.add_error_handler(error_handler)
